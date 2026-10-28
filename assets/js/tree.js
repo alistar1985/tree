@@ -196,6 +196,7 @@
       for (let i = order.length - 1; i >= 0; i--) {
         const n = order[i];
         n.desc = n.kids.reduce((s, k) => s + 1 + k.desc, 0);
+        n.maxGen = n.kids.reduce((m, k) => Math.max(m, k.maxGen), n.gen); // أبعد جيل في ذريته
       }
       let hi = 0;
       order.forEach((n) => {
@@ -286,10 +287,12 @@
       const baseVd = chain.length;
       const build = (n, vd) => ({ n, children: this._visKids(n, vd).map((k) => build(k, vd + 1)) });
       const h = d3.hierarchy(build(crown, baseVd), (d) => (d.children.length ? d.children : null));
+      // كل جيل بشكل ولون واحد: الأوراق للجيل الأخير فقط، وباقي الأجيال دوائر حتى من لا أبناء له
+      const lastRel = crown.maxGen - crown.gen;
       h.each((d) => {
         const n = d.data.n;
         if (d.depth === 0) d.kind = 'crown';
-        else if (!n.kids.length) d.kind = 'leaf';
+        else if (d.depth === lastRel && !n.kids.length) d.kind = 'leaf';
         else d.kind = 'circle';
         d.hidden = n.kids.length && !(d.children && d.children.length) ? n.desc : 0;
       });
@@ -510,12 +513,12 @@
       lg.push({ type: 'oval', color: C.root, label: 'الجد الجامع: ' + crown.name });
       if (this.o.colorMode === 'generation') {
         [...legendGen].sort((a, b) => a - b).forEach((k) => lg.push({ type: 'circle', color: C.gen[(k - 1) % C.gen.length], label: genName(k) }));
-        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: 'الأوراق: الجيل الأخير' });
+        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: genName(lastRel) + ' (الأخير): أوراق' });
         if (hasHead) lg.push({ type: 'ring', color: '#d9ae22', label: 'رأس بيت' });
       } else if (this.o.colorMode === 'classic') {
         if (hasHead) lg.push({ type: 'circle', color: C.head, label: 'رؤوس البيوت' });
         lg.push({ type: 'circle', color: C.son, label: 'الأبناء' });
-        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: 'الأحفاد (الأوراق)' });
+        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: 'الجيل الأخير (الأوراق)' });
       } else if (this.hasHouses) {
         [...housesInView.values()].slice(0, 14).forEach((hn) => lg.push({ type: 'circle', color: hn.hc, label: hn.house }));
         lg.push({ type: 'circle', color: C.son, label: 'خارج البيوت' });
