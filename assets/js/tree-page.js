@@ -33,10 +33,11 @@
         mode: state.mode, colorMode: state.color, colors: CFG.colors, clan: CFG.clan,
         onSelect: (n) => (n && !n.virtual ? openDrawer(n.id) : closeDrawer()),
         onRender: afterRender,
+        onLongPress: (n) => longPress(n),
       });
     }
     tree.setData(r.persons);
-    if (state.depth == null) state.depth = r.persons.length > 700 ? 6 : 0;
+    if (state.depth == null) state.depth = autoDepth(r.persons);
     tree.o.maxDepth = state.depth;
     if (state.root && !tree.get(state.root)) state.root = null;
     tree.rootId = state.root;
@@ -48,6 +49,28 @@
     $('#stPersons').textContent = r.persons.length;
     $('#stHouses').textContent = tree.houses().length;
     $('#stGens').textContent = Math.max(0, ...tree.order.map((n) => n.gen || 0));
+  }
+
+  /** أكبر عدد أجيال يبقى معه العرض الأول واضحاً (حوالي 450 اسماً)؛ الباقي يُفتح بالضغط على «+» */
+  function autoDepth(list) {
+    if (list.length <= 450) return 0;
+    const parent = new Map(list.map((p) => [p.i, p.p]));
+    const depth = new Map();
+    const d = (id) => {
+      if (depth.has(id)) return depth.get(id);
+      const par = parent.get(id);
+      const v = par == null || !parent.has(par) ? 1 : d(par) + 1;
+      depth.set(id, v);
+      return v;
+    };
+    const count = [];
+    list.forEach((p) => { const k = d(p.i); count[k] = (count[k] || 0) + 1; });
+    let total = 0;
+    for (let k = 1; k < count.length; k++) {
+      total += count[k] || 0;
+      if (total > 450) return Math.max(4, k - 1);
+    }
+    return 0;
   }
 
   function afterRender(t) {
@@ -423,7 +446,7 @@
       ${edit.length ? `<div class="d-sec"><h4>${icon(viewer.type === 'admin' ? 'shield' : 'key')}أدوات التحرير</h4><div class="d-actions">${edit.join('')}</div></div>` : ''}
       <div id="dForm"></div>
       <div class="d-sec"><h4>${icon('history')}السجل</h4><div class="meta-list">${meta.map((m) => `<div><span>${esc(m[0])}</span><b>${esc(m[1])}</b></div>`).join('')}</div></div>
-      <div class="d-sec"><button class="btn btn-sm btn-ghost btn-block" type="button" data-act="suggest">${icon('alert')}هل هناك خطأ؟ اقترح تصحيحاً</button></div>
+      <div class="d-sec"><button class="btn btn-sm btn-ghost btn-block" type="button" data-act="suggest">${icon('edit')}طلب تعديل (تصحيح الاسم أو من الأكبر)</button></div>
     </div>`;
     drawer.__p = p;
     drawer.__n = n;
@@ -574,15 +597,84 @@
     });
   }
 
+  /** طلب تعديل من الزائر: تصحيح الاسم، أو من الأكبر بين الإخوة، أو ملاحظة — تراجعه الإدارة وتوافق أو ترفض */
   function formSuggest(p) {
-    const f = dForm(`<h4 style="margin:0 0 8px">اقتراح تصحيح على «${esc(p.name)}»</h4>
-      <label class="field"><span>ما الخطأ وما الصحيح؟</span><textarea name="message" rows="3" required placeholder="مثال: اسم الجد الصحيح عبد الأمير وليس عبد الأمين"></textarea></label>
-      <label class="field"><span>للتواصل (اختياري)</span><input name="contact" placeholder="الاسم أو رقم الهاتف"></label>
-      ${formFoot('إرسال')}`);
+    const node = tree.get(p.id);
+    const sibs = node && node.parent ? node.parent.kids.filter((k) => k.id !== p.id && !k.pending) : [];
+    const f = dForm(`<h4 style="margin:0 0 8px">طلب تعديل على «${esc(p.name)}»</h4>
+      <div class="seg" style="display:flex;margin-bottom:12px">
+        <button type="button" class="on" data-k="rename">تصحيح الاسم</button>
+        ${sibs.length ? '<button type="button" data-k="order">من الأكبر؟</button>' : ''}
+        <button type="button" data-k="note">ملاحظة أخرى</button></div>
+      <input type="hidden" name="kind" value="rename">
+      <label class="field" data-for="rename"><span>الاسم الصحيح</span><input name="value" placeholder="${esc(p.name)}"></label>
+      ${sibs.length ? `<label class="field" data-for="order" hidden><span>«${esc(p.name)}» أكبر من أخيه:</span><select name="sib">${sibs.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>` : ''}
+      <label class="field"><span>ملاحظة (اختياري)</span><textarea name="message" rows="2" placeholder="أي توضيح يساعد الإدارة"></textarea></label>
+      <label class="field"><span>للتواصل (اختياري)</span><input name="contact" placeholder="اسمك"></label>
+      ${formFoot('إرسال الطلب')}`);
+    f.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-k]');
+      if (!b) return;
+      f.kind.value = b.dataset.k;
+      $$('[data-k]', f).forEach((x) => x.classList.toggle('on', x === b));
+      $$('[data-for]', f).forEach((x) => { x.hidden = x.dataset.for !== b.dataset.k; });
+    });
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
-      try { await api('suggest', { person_id: p.id, message: f.message.value, contact: f.contact.value }); toast('شكراً لك، وصل اقتراحك للإدارة'); drawer.querySelector('#dForm').innerHTML = ''; } catch (x) { toast(x.message, 'err'); }
+      try {
+        await api('suggest', { person_id: p.id, kind: f.kind.value, value: f.value.value, sib: f.sib ? f.sib.value : null, message: f.message.value, contact: f.contact.value });
+        toast('وصل طلبك للإدارة، وسيُطبَّق بعد الموافقة');
+        drawer.querySelector('#dForm').innerHTML = '';
+      } catch (x) { toast(x.message, 'err'); }
     });
+  }
+
+  /* ───────────── الضغط المطوّل على الاسم ───────────── */
+  async function longPress(n) {
+    if (!n || n.virtual || n.pending) return;
+    const canEdit = viewer.type === 'admin' || (viewer.type === 'code' && viewer.perms && viewer.perms.edit);
+    if (!canEdit) {
+      // الزائر: يفتح طلب تعديل مباشرة
+      await openDrawer(n.id);
+      if (drawer.__p) formSuggest(drawer.__p);
+      return;
+    }
+    const d = document.createElement('dialog');
+    d.className = 'modal';
+    d.innerHTML = `<form class="modal-card" method="dialog">
+      <header class="modal-head"><span class="modal-icon">${icon('edit')}</span><div><h3>تعديل سريع</h3><p>${esc(tree.nasab(n, 5))}</p></div></header>
+      <label class="field"><span>الاسم</span><input name="name" value="${esc(n.name)}" required></label>
+      <label class="field"><span>إضافة أبناء (اختياري، افصلهم بفاصلة)</span><input name="kids" placeholder="مثال: علي، حسن"></label>
+      <footer class="modal-foot" style="justify-content:space-between">
+        <button class="btn btn-danger-soft" value="delete" type="submit">${icon('trash')}حذف</button>
+        <span style="display:flex;gap:8px"><button class="btn btn-ghost" value="cancel" formnovalidate>إلغاء</button><button class="btn btn-primary" value="save" type="submit">${icon('check')}حفظ</button></span>
+      </footer></form>`;
+    document.body.appendChild(d);
+    d.addEventListener('close', async () => {
+      const f = d.querySelector('form');
+      const act = d.returnValue;
+      d.remove();
+      try {
+        if (act === 'save') {
+          const name = Names.clean(f.name.value);
+          if (name && name !== n.name) await api('person_update', { id: n.id, name });
+          let added = 0;
+          for (const k of f.kids.value.split(/[،,\n]+/).map((x) => Names.clean(x)).filter(Boolean)) { await api('person_add', { parent_id: n.id, name: k }); added++; }
+          toast(added ? `تم الحفظ وإضافة ${added} من الأبناء` : 'تم الحفظ');
+          await refresh(n.id);
+        } else if (act === 'delete') {
+          const hasKids = n.kids && n.kids.length;
+          const r = await App.confirm({ title: 'حذف «' + n.name + '»', text: hasKids ? 'سيُحذف مع ذريته (' + n.desc + '). يمكن الاستعادة من سجل العمليات.' : 'يمكن الاستعادة من سجل العمليات.', danger: true, ok: 'حذف' });
+          if (!r) return;
+          await api('person_delete', { id: n.id, with_desc: hasKids ? 1 : 0 });
+          closeDrawer();
+          await refresh(null);
+          toast('تم الحذف');
+        }
+      } catch (x) { toast(x.message, 'err'); }
+    });
+    d.showModal();
+    setTimeout(() => d.querySelector('[name=name]').select(), 50);
   }
 
   /* ───────────── التصدير ───────────── */

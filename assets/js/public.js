@@ -50,7 +50,7 @@ if (!state.installed) {
         </footer></form>`;
     } else {
       modal.innerHTML = `<form class="modal-card" method="dialog" data-code-form>${head}
-        <label class="field"><span>أدخل الرمز</span><input name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" placeholder="0000-0000" maxlength="12" required></label>
+        <label class="field"><span>أدخل الرمز</span><input name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" placeholder="000" maxlength="3" required></label>
         <p class="hint">${icon('info')} كل إضافة أو تعديل يتم بالرمز يُسجَّل باسم صاحبه في سجل العمليات.</p>
         <p class="form-error" data-error hidden></p>
         <footer class="modal-foot"><button class="btn btn-primary" type="submit">${icon('check')}دخول</button></footer></form>`;

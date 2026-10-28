@@ -275,9 +275,12 @@ PAGES.review = async (tab = 'subs') => {
         </div></article>`;
     }).join('') : `<div class="panel">${empty('check', 'لا توجد طلبات بانتظار المراجعة')}</div>`;
   } else if (tab === 'sugg') {
-    body = panel('اقتراحات التصحيح', 'alert', `<div class="feed">${sugg.length ? sugg.map((g) => `<div class="feed-item"><span class="feed-dot ${g.st === 'open' ? 'warn' : 'ok'}">${icon(g.st === 'open' ? 'alert' : 'check')}</span>
-      <div style="flex:1;min-width:0"><p>${g.pid != null && P(g.pid) ? `<a href="#people/${g.pid}"><b>${esc(S.nasab(g.pid, 5))}</b></a> — ` : ''}${esc(g.msg)}</p><small>${S.timeAgo(g.at)}${g.contact ? ' · ' + esc(g.contact) : ''}${g.st !== 'open' ? ' · ' + (g.st === 'done' ? 'منجز' : 'متجاهل') + ' بواسطة ' + esc(g.rby || '') : ''}</small></div>
-      ${g.st === 'open' ? `<div style="display:flex;gap:6px"><button class="btn btn-xs btn-ok-soft" data-act="sugg" data-st="done" data-id="${esc(g.id)}">${icon('check')}تم التصحيح</button><button class="btn btn-xs btn-ghost" data-act="sugg" data-st="dismissed" data-id="${esc(g.id)}">تجاهل</button></div>` : ''}</div>`).join('') : empty('check', 'لا توجد اقتراحات')}</div>`);
+    body = panel('طلبات التعديل', 'edit', `<div class="feed">${sugg.length ? sugg.map((g) => `<div class="feed-item"><span class="feed-dot ${g.st === 'open' ? 'warn' : 'ok'}">${icon(g.st === 'open' ? 'alert' : 'check')}</span>
+      <div style="flex:1;min-width:0"><p>${g.pid != null && P(g.pid) ? `<a href="#people/${g.pid}"><b>${esc(S.nasab(g.pid, 5))}</b></a> — ` : ''}${esc(g.msg)}</p><small>${S.timeAgo(g.at)}${g.contact ? ' · ' + esc(g.contact) : ''}${g.st !== 'open' ? ' · ' + (g.st === 'done' ? 'تمت الموافقة' : 'مرفوض') + ' بواسطة ' + esc(g.rby || '') : ''}</small></div>
+      ${g.st === 'open' ? `<div style="display:flex;gap:6px">${g.kind === 'rename' || g.kind === 'order'
+        ? `<button class="btn btn-xs btn-ok-soft" data-act="sugg-apply" data-id="${esc(g.id)}">${icon('check')}موافقة وتطبيق</button>`
+        : `<button class="btn btn-xs btn-ok-soft" data-act="sugg" data-st="done" data-id="${esc(g.id)}">${icon('check')}تم</button>`}
+        <button class="btn btn-xs btn-danger-soft" data-act="sugg" data-st="dismissed" data-id="${esc(g.id)}">${icon('x')}رفض</button></div>` : ''}</div>`).join('') : empty('check', 'لا توجد طلبات تعديل')}</div>`);
   } else {
     const all = (await vals('subs')).filter((s) => s.st !== 'pending').sort((a, b) => (b.rat || b.at || 0) - (a.rat || a.at || 0)).slice(0, 150);
     body = panel('الأرشيف', 'history', `<div class="table-wrap"><table class="t"><thead><tr><th>النسب المرسل</th><th>الحالة</th><th>المراجع</th><th>التاريخ</th><th>الجهاز</th></tr></thead><tbody>
@@ -285,7 +288,7 @@ PAGES.review = async (tab = 'subs') => {
   }
   view().innerHTML = `<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
     <nav class="tabs"><a href="#review" class="${tab === 'subs' ? 'on' : ''}">${icon('user-plus')}طلبات الإضافة${subs.length ? `<span class="count">${subs.length}</span>` : ''}</a>
-    <a href="#review/sugg" class="${tab === 'sugg' ? 'on' : ''}">${icon('alert')}اقتراحات التصحيح${openSugg ? `<span class="count">${openSugg}</span>` : ''}</a><a href="#review/archive" class="${tab === 'archive' ? 'on' : ''}">${icon('history')}الأرشيف</a></nav>
+    <a href="#review/sugg" class="${tab === 'sugg' ? 'on' : ''}">${icon('edit')}طلبات التعديل${openSugg ? `<span class="count">${openSugg}</span>` : ''}</a><a href="#review/archive" class="${tab === 'archive' ? 'on' : ''}">${icon('history')}الأرشيف</a></nav>
     ${tab === 'subs' && subs.length ? `<button class="btn btn-ok-soft btn-sm" data-act="approve-all">${icon('check')}اعتماد الكل</button>` : ''}</div>${body}`;
   bindPickers(view());
 };
@@ -404,63 +407,77 @@ PAGES.houses = async (edit) => {
   bindPickers(view());
 };
 
-/* ───────────── رموز الصلاحية ───────────── */
+/* ───────────── رموز الصلاحية ─────────────
+   رمز من 3 أرقام + اسم صاحبه فقط. صلاحيات كاملة (إضافة وتعديل وحذف واعتماد) في الشجرة كلها.
+   يعمل لشخص واحد: أول جهاز يدخل به يُربط به ولا يفتح لغيره. */
 let newCodeShown = null;
-PAGES.codes = async (mode, arg) => {
+PAGES.codes = async () => {
   if (!isManager()) return go('dashboard');
   setTitle('رموز الصلاحية', 'key');
-  const codes = (await vals('codes')).sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0) || (b.at || 0) - (a.at || 0));
+  const codes = (await vals('codes')).sort((a, b) => (b.at || 0) - (a.at || 0));
   const secrets = (await get(ref(db, 'codes_secret'))).val() || {};
-  const edit = mode === 'edit' ? codes.find((c) => c.id === arg) : null;
-  const preScope = edit ? edit.scope : mode === 'new' && arg && arg !== 'supervisor' ? +arg : null;
-  const isSup = edit ? edit.scope == null && edit.approve && edit.del : arg === 'supervisor';
   const adds = {};
   state.map.forEach((p) => { if (p.by && p.by.t === 'code') adds[p.by.id] = (adds[p.by.id] || 0) + 1; });
-  const scopeName = (s) => (s == null || s === '' ? 'الشجرة كاملة' : P(s) ? (P(s).head ? S.houseName(+s) : 'فرع ' + S.nasab(+s, 3)) : 'غير موجود');
   let shown = '';
   if (newCodeShown) {
     const c = newCodeShown;
-    const msg = `السلام عليكم\nهذا رمز صلاحيتك ${c.scope == null ? '(مشرف على الشجرة كاملة)' : '(' + scopeName(c.scope) + ')'} في ${state.settings.site_title}:\n${c.code}\n\nللإضافة: افتح ${new URL('add', location.href).href}\nثم اضغط على أيقونة المفتاح 🔑 وأدخل الرمز.\nكل إضافة تُسجَّل باسمك.`;
-    shown = `<section class="panel" style="border-color:var(--primary)"><div class="panel-head"><div><h2>${icon('check')}رمز «${esc(c.holder)}» جاهز</h2><p>أرسله لصاحبه فقط.</p></div></div>
+    const msg = `السلام عليكم\nرمز صلاحيتك في ${state.settings.site_title}: ${c.code}\n\nافتح ${new URL('./', location.href).href}\nثم اضغط أيقونة المفتاح 🔑 وأدخل الرمز.\nالرمز يعمل على جهازك أنت فقط من أول استخدام.`;
+    shown = `<section class="panel" style="border-color:var(--primary)"><div class="panel-head"><div><h2>${icon('check')}رمز «${esc(c.holder)}» جاهز</h2><p>أرسله لصاحبه فقط — يُربط بأول جهاز يدخل به.</p></div></div>
       <div class="panel-body" style="display:grid;gap:12px;justify-items:center"><div class="code-big">${esc(c.code)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
       <button class="btn btn-outline" type="button" data-copy="${esc(c.code)}">${icon('copy')}نسخ الرمز</button><button class="btn btn-outline" type="button" data-copy="${esc(msg)}">${icon('copy')}نسخ رسالة كاملة</button>
-      <a class="btn btn-primary" target="_blank" rel="noopener" href="https://wa.me/${esc(String(c.phone || '').replace(/\D/g, '').replace(/^0/, '964'))}?text=${encodeURIComponent(msg)}">${icon('whatsapp')}إرسال عبر واتساب</a></div></div></section>`;
+      <a class="btn btn-primary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(msg)}">${icon('whatsapp')}إرسال عبر واتساب</a></div></div></section>`;
     newCodeShown = null;
   }
-  view().innerHTML = shown + panel(edit ? 'تعديل رمز ' + esc(edit.holder) : 'إنشاء رمز جديد', edit ? 'edit' : 'plus', `<form class="panel-body form-grid" data-form="code-save" data-id="${edit ? edit.id : ''}">
-      <div class="field full"><span>نوع الرمز</span><div class="radio-cards" style="margin:0">
-        <label class="radio-card"><input type="radio" name="code_type" value="house" ${isSup ? '' : 'checked'}><span><b>${icon('house')} رمز بيت</b><small>لرأس البيت: يضيف أفراد بيته ويعدّلهم فقط، حسب الصلاحيات التي تختارها.</small></span></label>
-        <label class="radio-card"><input type="radio" name="code_type" value="supervisor" ${isSup ? 'checked' : ''}><span><b>${icon('shield')} رمز مشرف</b><small>للمشرفين دون لوحة تحكم: يضيف ويعدّل ويحذف ويعتمد الطلبات في الشجرة كاملة.</small></span></label></div></div>
-      <label class="field"><span>اسم صاحب الرمز</span><input name="holder" value="${esc(edit ? edit.holder : '')}" placeholder="مثال: أبو علي — جعفر محمد" required></label>
-      <label class="field"><span>هاتفه (لإرسال الرمز عبر واتساب)</span><input name="phone" dir="ltr" inputmode="tel" value="${esc(edit ? edit.phone || '' : '')}" placeholder="07xxxxxxxxx"></label>
-      <label class="field" data-scope><span>نطاق الرمز (البيت)</span><select name="scope_house"><option value="">الشجرة كاملة (صلاحية واسعة)</option>${houses().map((h) => `<option value="${h.id}" ${+preScope === h.id ? 'selected' : ''}>${esc(h.house || 'بيت ' + h.n)} — ${esc(S.nasab(h.id, 3))}</option>`).join('')}</select></label>
-      <label class="field" data-scope><span>أو فرع محدد (اختياري — يتقدم على البيت)</span>${picker('scope_person', 'ابحث عن رأس الفرع…', preScope != null && !(P(preScope) || {}).head ? preScope : null)}</label>
-      <div class="field full" data-perms><span>الصلاحيات</span><div style="display:flex;gap:18px;flex-wrap:wrap">
-        <label class="check"><input type="checkbox" name="add" ${!edit || edit.add ? 'checked' : ''}><span>إضافة أبناء</span></label><label class="check"><input type="checkbox" name="edit" ${!edit || edit.edit ? 'checked' : ''}><span>تعديل ونقل وترتيب</span></label>
-        <label class="check"><input type="checkbox" name="del" ${edit && edit.del ? 'checked' : ''}><span>حذف</span></label><label class="check"><input type="checkbox" name="approve" ${edit && edit.approve ? 'checked' : ''}><span>اعتماد طلبات البيت</span></label></div></div>
-      <label class="field"><span>تاريخ الانتهاء (اختياري)</span><input type="date" name="exp" value="${edit && edit.exp ? new Date(edit.exp).toISOString().slice(0, 10) : ''}"></label>
-      <label class="field"><span>ملاحظة داخلية</span><input name="note" value="${esc(edit ? edit.note || '' : '')}"></label>
-      <div class="full" style="display:flex;gap:8px"><button class="btn btn-primary" type="submit">${icon(edit ? 'check' : 'key')}${edit ? 'حفظ' : 'إنشاء الرمز'}</button>${edit ? '<a class="btn btn-ghost" href="#codes">إلغاء</a>' : ''}</div></form>`, '', 'يدخله صاحبه من أيقونة المفتاح في الموقع. كل ما يفعله يُسجَّل باسمه.')
-    + panel(`الرموز (${codes.length})`, 'key', `<div class="table-wrap"><table class="t"><thead><tr><th>صاحب الرمز</th><th>الرمز</th><th>النطاق</th><th>الصلاحيات</th><th>الاستخدام</th><th>آخر استخدام</th><th>الحالة</th><th></th></tr></thead><tbody>
-      ${codes.map((c) => { const code = (secrets[c.id] || {}).code || ''; const usable = c.active && (!c.exp || c.exp > Date.now()); return `<tr>
-        <td class="nm"><b>${esc(c.holder)}${c.scope == null && c.approve ? ' <span class="badge badge-info">مشرف</span>' : ''}</b><small>${esc(c.phone || '')}${c.note ? ' · ' + esc(c.note) : ''}</small></td>
-        <td><span class="code-mask" data-reveal="${esc(code)}">••••-${esc(code.slice(-4))}</span> <button class="btn btn-xs btn-ghost" type="button" data-copy="${esc(code)}">${icon('copy')}</button></td>
-        <td><small>${esc(scopeName(c.scope))}</small></td>
-        <td><div class="perm-badges">${c.add ? '<span class="badge badge-ok">إضافة</span>' : ''}${c.edit ? '<span class="badge badge-info">تعديل</span>' : ''}${c.del ? '<span class="badge badge-danger">حذف</span>' : ''}${c.approve ? '<span class="badge badge-gold">اعتماد</span>' : ''}</div></td>
-        <td class="num"><small>${c.logins || 0} دخول · ${adds[c.id] || 0} إضافة</small></td><td><small>${S.timeAgo(c.last)}</small></td>
-        <td>${usable ? '<span class="badge badge-ok">فعال</span>' : !c.active ? '<span class="badge badge-muted">معطّل</span>' : '<span class="badge badge-danger">منتهي</span>'}</td>
-        <td><div class="acts"><a class="btn btn-xs btn-ghost" href="#codes/edit/${c.id}">${icon('edit')}</a><button class="btn btn-xs btn-outline" data-act="code-toggle" data-id="${c.id}">${c.active ? 'تعطيل' : 'تفعيل'}</button>
-          <button class="btn btn-xs btn-ghost" data-act="code-regen" data-id="${c.id}" title="تجديد الرمز">${icon('refresh')}</button><button class="btn btn-xs btn-ghost" data-act="code-delete" data-id="${c.id}" title="حذف">${icon('trash')}</button></div></td></tr>`; }).join('') || `<tr><td colspan="8">${empty('key', 'لا توجد رموز بعد')}</td></tr>`}</tbody></table></div>`);
-  bindPickers(view());
-  syncCodeType();
+  view().innerHTML = shown + panel('إنشاء رمز', 'plus', `<form class="panel-body form-grid" data-form="code-save">
+      <label class="field"><span>الرمز (3 أرقام)</span><input name="code" class="code-input" inputmode="numeric" maxlength="3" placeholder="اتركه فارغاً لرمز عشوائي" dir="ltr"></label>
+      <label class="field"><span>اسم صاحب الرمز</span><input name="holder" placeholder="مثال: أبو علي" required></label>
+      <div class="full"><button class="btn btn-primary" type="submit">${icon('key')}إنشاء الرمز</button></div></form>`, '', 'صاحب الرمز يضيف ويعدّل ويحذف ويعتمد الطلبات في الشجرة كلها. يعمل على جهاز واحد فقط؛ إن ضاع منه اضغط «رمز جديد».')
+    + panel(`الرموز (${codes.length})`, 'key', `<div class="table-wrap"><table class="t"><thead><tr><th>صاحب الرمز</th><th>الرمز</th><th>الجهاز</th><th>الاستخدام</th><th>الحالة</th><th></th></tr></thead><tbody>
+      ${codes.map((c) => { const code = (secrets[c.id] || {}).code || ''; return `<tr>
+        <td class="nm"><b>${esc(c.holder)}</b><small>أُنشئ ${S.timeAgo(c.at)}</small></td>
+        <td><b class="code-mask">${esc(code)}</b></td>
+        <td>${c.claimed ? `<span class="badge badge-ok">${icon('lock')}مربوط بجهاز</span><br><small class="muted">${esc(c.dev || '')} · ${S.timeAgo(c.claimed)}</small>` : '<span class="badge badge-warn">لم يُستخدم بعد</span>'}</td>
+        <td class="num"><small>${c.logins || 0} دخول · ${adds[c.id] || 0} إضافة</small></td>
+        <td>${c.active ? '<span class="badge badge-ok">فعال</span>' : '<span class="badge badge-muted">معطّل</span>'}</td>
+        <td><div class="acts"><button class="btn btn-xs btn-outline" data-act="code-toggle" data-id="${c.id}">${c.active ? 'تعطيل' : 'تفعيل'}</button>
+          <button class="btn btn-xs btn-ghost" data-act="code-regen" data-id="${c.id}" title="رمز جديد لنفس الشخص">${icon('refresh')}رمز جديد</button>
+          <button class="btn btn-xs btn-ghost" data-act="code-delete" data-id="${c.id}" title="حذف">${icon('trash')}</button></div></td></tr>`; }).join('') || `<tr><td colspan="6">${empty('key', 'لا توجد رموز بعد')}</td></tr>`}</tbody></table></div>`);
 };
-function syncCodeType() {
-  const sup = $('input[name=code_type][value=supervisor]');
-  if (!sup) return;
-  $$('[data-scope]').forEach((el) => { el.hidden = sup.checked; });
-  $$('[data-perms] input').forEach((c) => { if (sup.checked) c.checked = true; c.disabled = sup.checked; });
+function syncCodeType() { /* لم يعد هناك أنواع للرموز */ }
+
+/** ينشئ حساب رمز من 3 أرقام؛ إن كان الرقم مستخدماً يختار غيره (أو يرفض إن حدده المالك) */
+async function makeCode(holder, wanted) {
+  for (let i = 0; i < 25; i++) {
+    const digits = wanted || String(100 + Math.floor(Math.random() * 900));
+    const { email, password } = await S.codeEmail(digits);
+    try {
+      const uid = await S.createAuthUser(email, password);
+      return { uid, digits };
+    } catch (e) {
+      if (!String(e.code).includes('email-already-in-use')) throw e;
+      if (wanted) throw new Error('الرمز ' + wanted + ' مستخدم مسبقاً، اختر رقماً آخر');
+    }
+  }
+  throw new Error('تعذر إيجاد رمز متاح، حدد رقماً بنفسك');
 }
-document.addEventListener('change', (e) => { if (e.target.name === 'code_type') syncCodeType(); });
+
+async function saveCode(f, fd) {
+  const holder = (fd.get('holder') || '').toString().trim();
+  const wanted = (fd.get('code') || '').toString().replace(/\D/g, '');
+  if (!holder) return toast('اسم صاحب الرمز مطلوب', 'err');
+  if (wanted && wanted.length !== 3) return toast('الرمز 3 أرقام', 'err');
+  const ok = await run(async () => {
+    const { uid, digits } = await makeCode(holder, wanted);
+    const u = {
+      ['codes/' + uid]: { holder, add: true, edit: true, del: true, approve: true, active: true, at: Date.now(), logins: 0 },
+      ['codes_secret/' + uid]: { code: digits },
+    };
+    auditAdmin(u, 'code_create', 'code', null, `أنشأ رمزاً لـ «${holder}»`);
+    await update(ref(db), u);
+    newCodeShown = { holder, code: digits };
+  });
+  if (ok) go('codes');
+}
 
 /* ───────────── سجل العمليات ───────────── */
 PAGES.log = async (pg) => {
@@ -664,7 +681,7 @@ document.addEventListener('submit', async (e) => {
       }, 'تم حفظ البيت');
       return go('houses');
     }
-    if (kind === 'code-save') await saveCode(f, fd, id);
+    if (kind === 'code-save') await saveCode(f, fd);
     if (kind === 'settings') await saveSettings(f, fd);
     if (kind === 'admin-add') {
       await run(async () => {
@@ -678,35 +695,6 @@ document.addEventListener('submit', async (e) => {
     if (kind === 'password') { await run(() => S.changePassword(val('current'), val('next')), 'تم تغيير كلمة المرور'); f.reset(); }
   } finally { if (btn) btn.disabled = false; }
 });
-
-async function saveCode(f, fd, id) {
-  const val = (k) => (fd.get(k) ?? '').toString().trim();
-  const sup = val('code_type') === 'supervisor';
-  if (!val('holder')) return toast('اسم صاحب الرمز مطلوب', 'err');
-  const scope = sup ? null : val('scope_person') ? +val('scope_person') : val('scope_house') ? +val('scope_house') : null;
-  const rec = {
-    holder: val('holder'), phone: val('phone').replace(/[^\d+]/g, '') || null, note: val('note') || null, scope,
-    add: sup || !!fd.get('add'), edit: sup || !!fd.get('edit'), del: sup || !!fd.get('del'), approve: sup || !!fd.get('approve'),
-    exp: val('exp') ? new Date(val('exp') + 'T23:59:59').getTime() : null,
-  };
-  const ok = await run(async () => {
-    const u = {};
-    if (id) {
-      Object.entries(rec).forEach(([k, v]) => { u[`codes/${id}/${k}`] = v; });
-      auditAdmin(u, 'code_update', 'code', null, `عدّل رمز «${rec.holder}»`);
-    } else {
-      const digits = S.newCodeDigits();
-      const { email, password } = await S.codeEmail(digits);
-      const uid = await S.createAuthUser(email, password);
-      u['codes/' + uid] = { ...Object.fromEntries(Object.entries(rec).filter(([, v]) => v !== null)), active: true, at: Date.now(), logins: 0 };
-      u['codes_secret/' + uid] = { code: S.fmtCode(digits) };
-      auditAdmin(u, 'code_create', 'code', null, `أنشأ رمزاً لـ «${rec.holder}»`);
-      newCodeShown = { ...rec, code: S.fmtCode(digits) };
-    }
-    await update(ref(db), u);
-  }, id ? 'تم حفظ الرمز' : null);
-  if (ok) go('codes');
-}
 
 async function saveSettings(f, fd) {
   const tab = f.dataset.tab;
@@ -749,7 +737,18 @@ document.addEventListener('click', async (e) => {
     toast('تم اعتماد ' + S.arCount(n, 'طلب واحد', 'طلبين', 'طلبات', 'طلباً'));
     await refreshCounts(); route();
   }
-  if (act === 'sugg') { if (await run(() => update(ref(db, 'suggestions/' + id), { st: b.dataset.st, rby: S.actor().l }), 'تم')) { await refreshCounts(); route(); } }
+  if (act === 'sugg') { if (await run(() => update(ref(db, 'suggestions/' + id), { st: b.dataset.st, rby: S.actor().l }), b.dataset.st === 'done' ? 'تم' : 'تم رفض الطلب')) { await refreshCounts(); route(); } }
+  if (act === 'sugg-apply') {
+    // تطبيق طلب التعديل نفسه ثم تعليمه كموافَق عليه
+    const g = (await get(ref(db, 'suggestions/' + id))).val();
+    const ok = await run(async () => {
+      if (!g || g.pid == null || !P(g.pid)) throw new Error('الشخص غير موجود في الشجرة');
+      if (g.kind === 'rename') await S.updatePerson(g.pid, { name: g.value });
+      else if (g.kind === 'order') await S.placeBefore(g.pid, g.sib);
+      await update(ref(db, 'suggestions/' + id), { st: 'done', rby: S.actor().l });
+    }, 'تمت الموافقة وطُبّق التعديل');
+    if (ok) { await refreshCounts(); route(); }
+  }
   if (act === 'confirm-link') { if (await run(() => S.movePerson(id, +b.dataset.parent), 'تم تأكيد الربط')) route(); }
   if (act === 'make-house') { if (await run(() => S.updatePerson(id, { is_head: 1, house_name: 'بيت ' + P(id).n, house_color: PALETTE[id % PALETTE.length] }), 'أصبح بيتاً')) route(); }
   if (act === 'unhouse') { if (await App.confirm({ title: 'إزالة البيت', text: 'لن يُحذف أي فرد.', ok: 'إزالة' }) && await run(() => S.updatePerson(id, { is_head: 0 }), 'أُزيلت صفة البيت')) route(); }
@@ -761,23 +760,18 @@ document.addEventListener('click', async (e) => {
   }
   if (act === 'code-regen' || act === 'code-delete') {
     const regen = act === 'code-regen';
-    if (!(await App.confirm({ title: regen ? 'تجديد الرمز' : 'حذف الرمز', text: regen ? 'سيتوقف الرمز الحالي عن العمل ويُنشأ رمز جديد.' : 'سيتوقف الرمز نهائياً. تبقى عملياته في السجل.', danger: !regen, ok: regen ? 'تجديد' : 'حذف' }))) return;
+    if (!(await App.confirm({ title: regen ? 'رمز جديد' : 'حذف الرمز', text: regen ? 'يتوقف الرمز الحالي فوراً ويُنشأ رمز جديد لنفس الشخص (ليستخدمه على جهاز جديد).' : 'يتوقف الرمز نهائياً. تبقى عملياته في السجل.', danger: !regen, ok: regen ? 'رمز جديد' : 'حذف' }))) return;
     await run(async () => {
       const c = (await get(ref(db, 'codes/' + id))).val();
-      const old = ((await get(ref(db, 'codes_secret/' + id))).val() || {}).code;
       const u = { ['codes/' + id]: null, ['codes_secret/' + id]: null };
       if (regen) {
-        const digits = S.newCodeDigits();
-        const { email, password } = await S.codeEmail(digits);
-        const uid = await S.createAuthUser(email, password);
-        u['codes/' + uid] = { ...c, logins: 0, last: null };
-        Object.keys(u['codes/' + uid]).forEach((k) => u['codes/' + uid][k] == null && delete u['codes/' + uid][k]);
-        u['codes_secret/' + uid] = { code: S.fmtCode(digits) };
-        newCodeShown = { ...c, code: S.fmtCode(digits) };
+        const { uid, digits } = await makeCode(c.holder, '');
+        u['codes/' + uid] = { holder: c.holder, add: true, edit: true, del: true, approve: true, active: true, at: Date.now(), logins: 0 };
+        u['codes_secret/' + uid] = { code: digits };
+        newCodeShown = { holder: c.holder, code: digits };
       }
-      auditAdmin(u, regen ? 'code_update' : 'code_delete', 'code', null, `${regen ? 'جدّد' : 'حذف'} رمز «${c.holder}»`);
+      auditAdmin(u, regen ? 'code_update' : 'code_delete', 'code', null, `${regen ? 'رمز جديد لـ' : 'حذف رمز'} «${c.holder}»`);
       await update(ref(db), u);
-      if (old) await S.deleteCodeUser(old);
     }, regen ? null : 'تم حذف الرمز');
     route();
   }

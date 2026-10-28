@@ -307,29 +307,28 @@
       let trunk = null;
 
       if (mode === 'organic') {
-        // تاج دائري: الأوراق كلها على محيط التاج، والأغصان الداخلية على حلقات حسب الجيل
-        const span = Math.PI * 1.22;
-        d3.cluster().size([span, 1]).separation((a, b) => (a.parent === b.parent ? 1 : 1.45))(h);
+        // تاج مرتب: كل جيل على حلقة، وكل فرع يأخذ زاوية بقدر حجم ذريته (ترتيب متوازن بلا تقاطع)،
+        // والتاج كله فوق الجذع (نصف دائرة) مهما كبرت الشجرة
+        const span = Math.PI * 0.96;
+        d3.tree().size([span, 1]).separation((a, b) => (a.parent === b.parent ? 1 : 1.6) / Math.max(1, a.depth))(h);
         const H = h.height;
-        const inner = [];
-        h.each((d) => { if (d.depth > 0 && !isLeaf(d)) (inner[d.depth] = inner[d.depth] || []).push(d); });
-        const minGap = (row, size) => {
-          let need = 0;
-          row = row.slice().sort((a, b) => a.x - b.x);
-          for (let i = 1; i < row.length; i++) need = Math.max(need, size / Math.max(1e-4, row[i].x - row[i - 1].x));
-          return need;
-        };
+        const rows = [];
+        h.each((d) => { if (d.depth > 0) (rows[d.depth] = rows[d.depth] || []).push(d); });
+        const tang = (d) => (isLeaf(d) ? LW + 8 : 2 * R + 10); // العرض المماسي لكل عقدة
         const radius = [0];
         for (let k = 1; k <= H; k++) {
-          radius[k] = Math.max(k === 1 ? 140 : radius[k - 1] + 72, minGap(inner[k] || [], 2 * R + 6));
+          const row = (rows[k] || []).slice().sort((a, b) => a.x - b.x);
+          let need = 0;
+          for (let i = 1; i < row.length; i++) {
+            need = Math.max(need, ((tang(row[i]) + tang(row[i - 1])) / 2) / Math.max(1e-4, row[i].x - row[i - 1].x));
+          }
+          radius[k] = Math.max(k === 1 ? 150 : radius[k - 1] + (row.every(isLeaf) ? LL + 22 : 2 * R + 46), need);
         }
-        const leaves = [];
-        h.each((d) => { if (isLeaf(d)) leaves.push(d); });
-        const rOut = Math.max(H > 1 ? radius[H - 1] + 86 : 150, minGap(leaves, LW + 6));
+        const rOut = radius[H] || 150;
         h.each((d) => {
           const a = -Math.PI / 2 - (d.x - span / 2);
           d.angle = a;
-          d.r = d.depth === 0 ? 0 : (isLeaf(d) ? rOut : Math.min(radius[d.depth] || rOut, rOut - 40));
+          d.r = radius[d.depth] || 0;
           d.px = d.r * Math.cos(a) * EX;
           d.py = d.r * Math.sin(a) * EY;
         });
@@ -498,15 +497,34 @@
         this.gNodes.selectAll('g.nd')
           .on('click', function (e) {
             e.stopPropagation();
+            if (self._lpFired) { self._lpFired = false; return; } // انتهى ضغط مطوّل
             const n = this.__node;
             if (e.target.closest && e.target.closest('.badge')) { self.toggle(n.id); return; }
             self.select(n.id);
             if (self.o.onSelect) self.o.onSelect(n);
           })
           .on('dblclick', function (e) { e.stopPropagation(); self.toggle(this.__node.id); })
+          // الضغط المطوّل على الاسم: تعديل سريع
+          .on('pointerdown', function (e) {
+            const n = this.__node;
+            self._lpFired = false;
+            self._lpPos = [e.clientX, e.clientY];
+            clearTimeout(self._lp);
+            self._lp = setTimeout(() => {
+              self._lp = null;
+              self._lpFired = true;
+              if (navigator.vibrate) navigator.vibrate(30);
+              if (self.o.onLongPress) self.o.onLongPress(n);
+            }, 550);
+          })
+          .on('pointerup pointercancel', () => { clearTimeout(self._lp); self._lp = null; })
+          .on('contextmenu', (e) => e.preventDefault())
           .on('pointerenter', function (e) { if (e.pointerType === 'mouse') self._showTip(this.__node, e); })
-          .on('pointermove', function (e) { if (e.pointerType === 'mouse') self._moveTip(e); })
-          .on('pointerleave', () => self._hideTip());
+          .on('pointermove', function (e) {
+            if (self._lp && Math.hypot(e.clientX - self._lpPos[0], e.clientY - self._lpPos[1]) > 8) { clearTimeout(self._lp); self._lp = null; }
+            if (e.pointerType === 'mouse') self._moveTip(e);
+          })
+          .on('pointerleave', () => { clearTimeout(self._lp); self._lp = null; self._hideTip(); });
       }
 
       // وسيلة الإيضاح

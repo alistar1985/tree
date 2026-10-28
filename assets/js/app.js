@@ -151,8 +151,7 @@
   document.addEventListener('input', (e) => {
     if (!e.target.classList.contains('code-input')) return;
     const ar = '٠١٢٣٤٥٦٧٨٩', fa = '۰۱۲۳۴۵۶۷۸۹';
-    let v = e.target.value.replace(/[٠-٩۰-۹]/g, (c) => String(ar.indexOf(c) >= 0 ? ar.indexOf(c) : fa.indexOf(c))).replace(/\D/g, '').slice(0, 8);
-    if (v.length > 4) v = v.slice(0, 4) + '-' + v.slice(4);
+    let v = e.target.value.replace(/[٠-٩۰-۹]/g, (c) => String(ar.indexOf(c) >= 0 ? ar.indexOf(c) : fa.indexOf(c))).replace(/\D/g, '').slice(0, 3);
     e.target.value = v;
   });
   document.addEventListener('click', async (e) => {

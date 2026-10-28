@@ -176,12 +176,15 @@ export const DEVICE_LABELS = { mobile: 'هاتف', tablet: 'لوحي', desktop: 
 const devLabel = () => { const u = uaParse(); return `${u.device} · ${u.os} · ${u.browser}`; };
 
 /* ───────────── الهوية ───────────── */
+/** بيانات حساب الرمز: البريد وكلمة المرور الأولى مشتقة من الأرقام نفسها */
 export async function codeEmail(code) {
   const digits = latin(code).replace(/\D/g, '');
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('clan-tree:' + digits));
   const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-  return { email: `c${hex.slice(0, 24)}@codes.clan-tree.app`, password: digits };
+  return { email: `c${hex.slice(0, 24)}@codes.clan-tree.app`, password: 'ct-' + hex.slice(24, 44) };
 }
+const codeKeys = () => { try { return JSON.parse(localStorage.getItem('clan-code-keys') || '{}'); } catch (e) { return {}; } };
+const saveCodeKeys = (k) => { try { localStorage.setItem('clan-code-keys', JSON.stringify(k)); } catch (e) { /* بدون تخزين */ } };
 
 async function resolveViewer(user) {
   state.user = user;
@@ -577,6 +580,20 @@ export async function restoreBatch(tk) {
   return Object.values(t.persons).filter(Boolean).length;
 }
 
+/** وضع الشخص قبل أخيه في الترتيب (أي أكبر منه) */
+export async function placeBefore(id, sib) {
+  await loadPersons();
+  const p = P(id);
+  if (!p || !P(sib) || P(sib).p !== p.p) throw err('الأخ غير موجود');
+  if (!can('reorder', id)) throw err('لا تملك صلاحية الترتيب هنا');
+  const ids = kidsOf(p.p).filter((x) => x !== +id);
+  ids.splice(ids.indexOf(+sib), 0, +id);
+  const u = {};
+  ids.forEach((x, i) => { u[`persons/${x}/o`] = i + 1; });
+  auditEntry(u, actor(), 'reorder', 'person', +id, `جعل «${p.n}» أكبر من أخيه «${P(sib).n}»`);
+  await commit(u);
+}
+
 export async function reorderPerson(id, dir) {
   await loadPersons();
   const p = P(id);
@@ -817,6 +834,19 @@ export async function submitLineage(input) {
     if (P(anchor).g === 'f' && idx > 0) throw err('لا يُضاف أبناء تحت الإناث');
   }
   const above = floating ? null : chainAbove(anchor, idx, names);
+  // رفض المكرر: الشخص وأبناؤه موجودون كلهم في الشجرة
+  if (idx === 0 && !floating && sons.every((s) => kidsOf(anchor).some((x) => P(x).k === Names.key(s)))) {
+    throw err(sons.length ? 'هذا النسب وأبناؤه موجودون مسبقاً في الشجرة' : `الاسم «${nasab(anchor, 5)}» موجود مسبقاً في الشجرة`);
+  }
+  // رفض المكرر: نفس النسب مُرسل وما زال بانتظار المراجعة
+  const dkBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(names.map(Names.key).join('|') + '#' + sons.map(Names.key).join('|')));
+  const dk = [...new Uint8Array(dkBuf)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+  const prev = await restGet('dups/' + dk).catch(() => null);
+  if (prev) {
+    const ps = await restGet('subs/' + prev).catch(() => null);
+    if (ps && ps.st === 'pending') throw err('هذا النسب مُرسل مسبقاً وهو بانتظار المراجعة');
+    await write({ ['dups/' + dk]: null }).catch(() => {});
+  }
   const mode = state.settings.registration_mode;
   let status = 'pending';
   if (v.type === 'admin') status = 'approved';
@@ -831,7 +861,7 @@ export async function submitLineage(input) {
     names, sons: sons.length ? sons : undefined, anchor, idx, above: above ? above.names : undefined, top: above ? above.top : undefined, fl: floating || undefined,
     phone: phone || undefined, note: String(input.note || '').trim().slice(0, 500) || undefined, nick: String(input.nickname || '').trim().slice(0, 80) || undefined,
     birth: /^\d{3,4}$/.test(latin(input.birth_year || '')) ? latin(input.birth_year) : undefined, st: status, dev: devLabel(), ua: navigator.userAgent.slice(0, 400),
-    vid: visitorId(), at: TS(), code: v.type === 'code' ? v.holder : undefined,
+    vid: visitorId(), at: TS(), code: v.type === 'code' ? v.holder : undefined, dk: status === 'pending' ? dk : undefined,
   });
   const u = {};
   let selfId = null, created = [];
@@ -841,6 +871,7 @@ export async function submitLineage(input) {
     Object.assign(sub, clean({ rby: a.l + ' (اعتماد تلقائي)', rat: TS(), self: selfId ?? undefined }));
   }
   u['subs/' + sid] = sub;
+  if (status === 'pending') u['dups/' + dk] = sid;
   const sum = (status === 'approved' ? 'أضاف نسب ' : 'طلب إضافة نسب ') + `«${names.join(' ')}»` + (floating ? ' — فرع جديد غير مربوط بعد' : created.length ? ' — ' + arCount(created.length, 'اسم جديد', 'اسمان جديدان', 'أسماء جديدة', 'اسماً جديداً') : '');
   auditEntry(u, { ...a, l: label }, status === 'approved' ? 'create' : 'submit', 'submission', null, sum);
   if (status === 'approved') u['meta/rev'] = TS();
@@ -877,7 +908,8 @@ export async function approveSubmission(sid, newAnchor = null, newIndex = null) 
     [`subs/${sid}/above`]: sub.above || null, [`subs/${sid}/top`]: sub.top ?? null, [`subs/${sid}/self`]: r.selfId ?? null,
   });
   if (sub.phone && r.selfId != null && a.t === 'admin') u[`private/${r.selfId}/phone`] = sub.phone;
-  auditEntry(u, a, 'approve', 'submission', null, `اعتمد طلب «${names.join(' ')}»` + (r.created.length ? ' — ' + arCount(r.created.length, 'اسم جديد', 'اسمان جديدان', 'أسماء جديدة', 'اسماً جديداً') : ' (موجود مسبقاً)'));
+  if (sub.dk) u['dups/' + sub.dk] = null;
+  auditEntry(u, a, 'approve', 'submission', null,`اعتمد طلب «${names.join(' ')}»` + (r.created.length ? ' — ' + arCount(r.created.length, 'اسم جديد', 'اسمان جديدان', 'أسماء جديدة', 'اسماً جديداً') : ' (موجود مسبقاً)'));
   await commit(u);
   const linked = await applyAbove(sub, a);
   return { ok: true, merged: [], linked, self_id: r.selfId };
@@ -888,6 +920,7 @@ export async function rejectSubmission(sid, note = '') {
   if (!sub || sub.st !== 'pending') throw err('الطلب غير موجود أو تمت مراجعته');
   const a = actor();
   const u = { [`subs/${sid}/st`]: 'rejected', [`subs/${sid}/rby`]: a.l, [`subs/${sid}/rat`]: TS() };
+  if (sub.dk) u['dups/' + sub.dk] = null;
   if (note) u[`subs/${sid}/rnote`] = String(note).slice(0, 300);
   auditEntry(u, a, 'reject', 'submission', null, `رفض طلب «${(sub.names || []).join(' ')}»` + (note ? ': ' + note : ''));
   await update(ref(db), u);
@@ -939,26 +972,42 @@ function pendingNodes(subs, mine) {
 }
 
 /* ───────────── الرموز ───────────── */
+/**
+ * دخول برمز من 3 أرقام. أول جهاز يدخل به يُربط به: تتغير كلمة سر الحساب إلى سر عشوائي محفوظ
+ * في هذا الجهاز فقط، فلا يعود الرمز يفتح لأي شخص آخر (يفرضه Firebase نفسه).
+ */
 export async function codeLogin(code) {
   const digits = latin(code).replace(/\D/g, '');
-  if (digits.length !== 8) throw err('الرمز يتكون من 8 أرقام');
+  if (digits.length !== 3) throw err('الرمز يتكون من 3 أرقام');
   const { email, password } = await codeEmail(digits);
+  const keys = codeKeys();
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
+    let cred, firstUse = false;
+    try { cred = await signInWithEmailAndPassword(auth, email, keys[email] || password); firstUse = !keys[email]; }
+    catch (e) { if (!keys[email]) throw e; cred = await signInWithEmailAndPassword(auth, email, password); firstUse = true; }
     await resolveViewer(cred.user);
-    if (!state.code) { await signOut(auth); throw err('هذا الرمز معطّل أو منتهي الصلاحية'); }
+    if (!state.code) { await signOut(auth); throw err('هذا الرمز معطّل'); }
+    if (firstUse) {
+      const rnd = new Uint8Array(24);
+      crypto.getRandomValues(rnd);
+      const secret = [...rnd].map((b) => b.toString(16).padStart(2, '0')).join('');
+      await updatePassword(cred.user, secret);
+      keys[email] = secret;
+      saveCodeKeys(keys);
+      await update(ref(db, 'codes/' + cred.user.uid), { claimed: Date.now(), dev: devLabel() }).catch(() => {});
+    }
     await update(ref(db, 'codes/' + cred.user.uid), { logins: (state.code.logins || 0) + 1, last: Date.now() }).catch(() => {});
     const u = {};
-    auditEntry(u, actor(), 'code_login', 'code', null, `دخول برمز «${state.code.holder}»`);
+    auditEntry(u, actor(), 'code_login', 'code', null, `دخول برمز «${state.code.holder}»` + (firstUse ? ' (أول استخدام — رُبط بهذا الجهاز)' : ''));
     await update(ref(db), u).catch(() => {});
     return { ok: true, holder: state.code.holder };
   } catch (e) {
     if (e.user) throw e;
     if (String(e.code).includes('too-many-requests')) throw err('محاولات كثيرة خاطئة، انتظر قليلاً ثم أعد المحاولة');
     const u = {};
-    auditEntry(u, { t: 'public', l: 'زائر' }, 'code_failed', 'code', null, 'محاولة دخول برمز غير صالح');
+    auditEntry(u, { t: 'public', l: 'زائر' }, 'code_failed', 'code', null, 'محاولة دخول برمز غير صالح أو مستخدم على جهاز آخر');
     write(u).catch(() => {});
-    throw err('الرمز غير صحيح');
+    throw err('الرمز غير صحيح، أو أنه مستخدم على جهاز شخص آخر');
   }
 }
 export async function logout() { await signOut(auth); }
@@ -1119,12 +1168,27 @@ const handlers = {
     });
     return { ok: true, items };
   },
+  /** طلب تعديل من الزائر: تصحيح اسم، أو ترتيب الإخوة (من الأكبر)، أو ملاحظة — يُعتمد أو يُرفض من لوحة التحكم */
   async suggest(d) {
-    const msg = String(d.message || '').trim();
-    if (msg.length < 5) throw err('اكتب تفاصيل التصحيح المطلوب');
+    await loadPersons();
+    const pid = d.person_id != null ? +d.person_id : null;
+    const kind = ['rename', 'order'].includes(d.kind) ? d.kind : 'note';
+    const p = pid != null ? P(pid) : null;
+    let msg = String(d.message || '').trim(), value, sib;
+    if (kind === 'rename') {
+      value = Names.clean(d.value || '');
+      const e = nameError(value);
+      if (e) throw err(e);
+      if (p && Names.key(value) === p.k) throw err('الاسم الجديد مطابق للحالي');
+      msg = `تصحيح الاسم من «${p ? p.n : ''}» إلى «${value}»` + (msg ? ' — ' + msg : '');
+    } else if (kind === 'order') {
+      sib = +d.sib;
+      if (!p || !P(sib) || P(sib).p !== p.p || sib === pid) throw err('اختر الأخ من القائمة');
+      msg = `«${p.n}» أكبر من أخيه «${P(sib).n}»` + (msg ? ' — ' + msg : '');
+    } else if (msg.length < 5) throw err('اكتب تفاصيل التصحيح المطلوب');
     const u = {};
-    u['suggestions/' + pushId()] = clean({ pid: d.person_id != null ? +d.person_id : undefined, msg: msg.slice(0, 1000), contact: String(d.contact || '').slice(0, 80) || undefined, at: TS(), st: 'open' });
-    auditEntry(u, { t: 'public', l: 'زائر' }, 'suggest', 'person', d.person_id != null ? +d.person_id : null, `اقتراح تصحيح: ${msg.slice(0, 80)}`);
+    u['suggestions/' + pushId()] = clean({ pid: pid ?? undefined, kind, value, sib, msg: msg.slice(0, 1000), contact: String(d.contact || '').slice(0, 80) || undefined, at: TS(), st: 'open' });
+    auditEntry(u, { t: 'public', l: 'زائر' }, 'suggest', 'person', pid, `طلب تعديل: ${msg.slice(0, 90)}`);
     await write(u);
     return { ok: true };
   },

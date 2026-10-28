@@ -56,6 +56,9 @@ const rules = {
         '.read': `auth != null && auth.uid === $uid`,
         '.write': MANAGER,
         logins: { '.write': `auth != null && auth.uid === $uid`, ...num },
+        // أول استخدام للرمز: يُربط بالجهاز مرة واحدة فقط
+        claimed: { '.write': `auth != null && auth.uid === $uid && !data.exists()`, ...num },
+        dev: { '.write': `auth != null && auth.uid === $uid && !data.exists()`, ...str(120) },
         last: { '.write': `auth != null && auth.uid === $uid`, ...num },
       },
     },
@@ -90,8 +93,16 @@ const rules = {
         st: { '.write': `data.val() === 'pending' && newData.val() === 'cancelled'`, '.validate': 'newData.isString()' },
         anchor: num, idx: num, top: num, self: num, fl: bool, at: num, rat: num,
         phone: str(20), note: str(500), nick: str(80), birth: str(4), dev: str(120), ua: str(400), vid: str(40),
-        code: str(120), rby: str(120), rnote: str(300),
+        code: str(120), rby: str(120), rnote: str(300), dk: str(40),
         $other: { '.validate': false },
+      },
+    },
+    // منع تكرار الطلب نفسه وهو بانتظار المراجعة
+    dups: {
+      '.read': true,
+      $k: {
+        '.write': `!data.exists() || ${ADMIN} || ${CODE} || (!newData.exists() && root.child('subs/' + data.val() + '/st').val() !== 'pending')`,
+        '.validate': 'newData.isString() && newData.val().length <= 40',
       },
     },
     trash: { '.read': ADMIN, '.write': `${ADMIN} || (${CODE} && ${C('/del')}.val() === true)` },
@@ -123,7 +134,7 @@ const rules = {
       $sid: {
         '.write': `${ADMIN} || !data.exists()`,
         '.validate': `newData.hasChildren(['msg', 'at'])`,
-        pid: num, msg: str(1000), contact: str(80), at: num, st: str(12), rby: str(120),
+        pid: num, msg: str(1000), contact: str(80), at: num, st: str(12), rby: str(120), kind: str(10), value: str(40), sib: num,
         $other: { '.validate': false },
       },
     },
