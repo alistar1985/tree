@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=15';
+import * as S from './store.js?v=16';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -739,8 +739,7 @@ document.addEventListener('submit', async (e) => {
       return;
     }
     if (kind === 'trunk-bulk') {
-      const list = val('names').split(/
-+/).map((x) => App.Names.clean(x)).filter(Boolean);
+      const list = val('names').split(/\n+/).map((x) => App.Names.clean(x)).filter(Boolean);
       if (!list.length) return toast('اكتب اسماً واحداً على الأقل', 'err');
       const at = val('at');
       await run(async () => {
