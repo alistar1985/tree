@@ -176,3 +176,13 @@ details.more summary { cursor: pointer; color: var(--primary); font-size: .82rem
 .ord-view li { counter-increment: o; padding: .2em .7em; border-radius: 999px; background: var(--surface-2, #f6f1e6); border: 1px solid var(--line); font-size: .84rem; font-weight: 600; }
 .ord-view li::before { content: counter(o) ". "; color: var(--muted); }
 .ord-view li:first-child { border-color: var(--primary); color: var(--primary); }
+
+/* البيوت: حد البيت التلقائي ووضع البيت لكل شخص */
+.house-min { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.house-min > .ic { color: var(--gold-600); }
+.house-min input { width: 84px; min-height: 36px; text-align: center; font-weight: 700; }
+.radio-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.radio-pill input { position: absolute; opacity: 0; pointer-events: none; }
+.radio-pill span { display: inline-flex; align-items: center; min-height: 36px; padding: 0 .9em; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: .86rem; font-weight: 600; cursor: pointer; }
+.radio-pill input:checked + span { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.radio-pill input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }

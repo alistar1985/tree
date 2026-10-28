@@ -75,7 +75,7 @@ export const DEFAULTS = {
   verse_1_ref: 'سورة الحجرات: 13',
   verse_2: 'وَاتَّقُوا اللَّهَ الَّذِي تَسَاءَلُونَ بِهِ وَالْأَرْحَامَ ۚ إِنَّ اللَّهَ كَانَ عَلَيْكُمْ رَقِيبًا',
   verse_2_ref: 'سورة النساء: 1',
-  registration_mode: 'review', require_phone: false, code_auto_approve: true, blocked_words: '', show_females: false,
+  registration_mode: 'review', require_phone: false, code_auto_approve: true, house_min: 20, blocked_words: '', show_females: false,
   show_years: true, show_added_by: false, default_color_mode: 'generation',
   gen_colors: ['#8fd3df', '#c0392b', '#ffffff', '#f4e7c5', '#f2b705', '#e67e22', '#8e5ea2', '#2e86c1', '#d35400', '#16a085'],
   color_trunk: '#bfe6dc', color_root: '#f3e6c4', color_head: '#e2b714', color_son: '#ffffff', color_leaf: '#2f6b1f', color_branch: '#3b2314',
@@ -351,7 +351,41 @@ export function descendants(id) {
   while (st.length) { const x = st.pop(); out.push(x); st.push(...kidsOf(x)); }
   return out;
 }
-export function houseOf(id) { return lineage(id).find((x) => P(x).head) ?? null; }
+/* ───────────── البيوت التلقائية ─────────────
+   كل من ذريته (house_min، افتراضياً 20) فأكثر يصير بيتاً تلقائياً (موسى، جعفر…)، إلا الجذر، وإلا الابن الوحيد لبيت
+   (لأن بيت أبيه يغطيه). المالك يتحكم بكل شخص: head = بيت دائماً، nh = ليس بيتاً أبداً. */
+let houseCache = null;
+function houseSet() {
+  const min = Math.max(2, +state.settings.house_min || 20);
+  if (houseCache && houseCache.map === state.map && houseCache.min === min) return houseCache.set;
+  const set = new Set(), desc = new Map();
+  const order = [];
+  const st = [...state.map.values()].filter((p) => p.p == null || !state.map.has(p.p)).map((p) => p.id);
+  while (st.length) { const x = st.pop(); order.push(x); st.push(...kidsOf(x)); }
+  for (let i = order.length - 1; i >= 0; i--) desc.set(order[i], kidsOf(order[i]).reduce((n, k) => n + 1 + (desc.get(k) || 0), 0));
+  order.forEach((id) => {
+    const p = P(id);
+    if (p.head) { set.add(id); return; }
+    if (p.nh || p.g === 'f' || p.p == null || !state.map.has(p.p)) return;
+    if (desc.get(id) + 1 < min) return;
+    if (set.has(p.p) && kidsOf(p.p).length === 1) return;
+    set.add(id);
+  });
+  houseCache = { map: state.map, min, set, desc };
+  return set;
+}
+export const isHouse = (id) => houseSet().has(+id);
+/** بيت تلقائي (لم يحدده المالك يدوياً) */
+export const isAutoHouse = (id) => isHouse(id) && !P(id).head;
+export const descCount = (id) => { houseSet(); return houseCache.desc.get(+id) || 0; };
+export const houseList = () => [...houseSet()].filter((id) => P(id));
+/** وضع البيت لشخص: on = بيت دائماً، off = ليس بيتاً، auto = حسب عدد ذريته */
+export async function setHouseMode(id, mode) {
+  if (mode === 'on') return updatePerson(id, { is_head: 1, no_house: 0 });
+  if (mode === 'off') return updatePerson(id, { is_head: 0, no_house: 1 });
+  return updatePerson(id, { is_head: 0, no_house: 0 });
+}
+export function houseOf(id) { return lineage(id).find((x) => isHouse(x)) ?? null; }
 export const houseName = (id) => P(id).house || 'بيت ' + P(id).n;
 export function rootId() {
   let r = null;
@@ -370,7 +404,7 @@ function childByKey(parent, key, extra) {
 
 export function compact(p) {
   const o = { i: p.id, p: p.p, n: p.n };
-  if (p.head) { o.h = p.house || 'بيت ' + p.n; if (p.hc) o.c = p.hc; }
+  if (isHouse(p.id)) { o.h = p.house || 'بيت ' + p.n; if (p.hc) o.c = p.hc; }
   if (p.dead) o.d = 1;
   if (p.g === 'f') o.g = 'f';
   if (p.nick) o.k = p.nick;
@@ -440,8 +474,8 @@ export async function addPerson(parent, fields) {
   return id;
 }
 
-const FIELD_MAP = { name: 'n', nickname: 'nick', gender: 'g', is_head: 'head', house_name: 'house', house_color: 'hc', birth_year: 'b', death_year: 'y', is_deceased: 'dead', bio: 'bio', sort_order: 'o' };
-export const FIELD_LABELS = { n: 'الاسم', nick: 'الكنية/اللقب', g: 'الجنس', head: 'رأس بيت', house: 'اسم البيت', hc: 'لون البيت', b: 'سنة الميلاد', y: 'سنة الوفاة', dead: 'متوفى', bio: 'نبذة', o: 'الترتيب', p: 'الأب', phone: 'الهاتف', path: 'المسار' };
+const FIELD_MAP = { name: 'n', nickname: 'nick', gender: 'g', is_head: 'head', no_house: 'nh', house_name: 'house', house_color: 'hc', birth_year: 'b', death_year: 'y', is_deceased: 'dead', bio: 'bio', sort_order: 'o' };
+export const FIELD_LABELS = { n: 'الاسم', nick: 'الكنية/اللقب', g: 'الجنس', head: 'رأس بيت', nh: 'إلغاء البيت التلقائي', house: 'اسم البيت', hc: 'لون البيت', b: 'سنة الميلاد', y: 'سنة الوفاة', dead: 'متوفى', bio: 'نبذة', o: 'الترتيب', p: 'الأب', phone: 'الهاتف', path: 'المسار' };
 
 export async function updatePerson(id, fields) {
   await loadPersons();
@@ -457,7 +491,7 @@ export async function updatePerson(id, fields) {
       const e = nameError(v);
       if (e) throw err(e);
       if (v !== p.n && p.p != null && kidsOf(p.p).some((x) => x !== p.id && P(x).k === Names.key(v))) throw err(`يوجد أخ بالاسم «${v}» مسبقاً`);
-    } else if (key === 'head' || key === 'dead') v = !!(+v || v === true) || null;
+    } else if (key === 'head' || key === 'dead' || key === 'nh') v = !!(+v || v === true) || null;
     else if (key === 'g') v = v === 'f' ? 'f' : null;
     else if (key === 'b' || key === 'y') {
       v = latin(v).trim();
@@ -579,16 +613,65 @@ export async function deletePerson(id, withDesc) {
   return ids.length;
 }
 
+/** حذف اسم من وسط السلسلة (مثلاً اسم خطأ) مع إبقاء أبنائه: يرتبطون بأبيه مباشرة في مكانه */
+export async function removeKeepKids(id) {
+  await loadPersons();
+  const p = P(id);
+  if (!p) throw err('الشخص غير موجود');
+  if (p.p == null || !P(p.p)) throw err('هذا أعلى جد في الشجرة؛ لا يوجد أب يرتبط به أبناؤه');
+  if (!can('delete', id)) throw err('لا تملك صلاحية الحذف هنا');
+  const kids = kidsOf(id), par = P(p.p);
+  const clash = kids.filter((k) => kidsOf(par.id).some((x) => x !== +id && P(x).k === P(k).k));
+  if (clash.length) throw err(`لا يمكن الربط: «${par.n}» عنده ابن باسم ${clash.map((k) => '«' + P(k).n + '»').join('، ')} — ادمجهما أولاً`);
+  const a = actor();
+  const u = {};
+  const tk = pushId();
+  u['trash/' + tk] = clean({ kind: 'unlink', at: TS(), by: a.l, root: +id, persons: trashOf([+id]), kids: kids.length ? kids : undefined });
+  kids.forEach((k) => movePaths(u, k, par.id, par.path));
+  // الأبناء يأخذون مكان أبيهم المحذوف في ترتيب الإخوة
+  const order = kidsOf(par.id).flatMap((x) => (x === +id ? kids : [x]));
+  order.forEach((x, i) => { u[`persons/${x}/o`] = i + 1; });
+  u['persons/' + id] = null;
+  auditEntry(u, a, 'delete', 'person', +id, `حذف «${nasab(id, 3)}» من السلسلة` + (kids.length ? ` وربط أبناءه (${kids.map((k) => P(k).n).join('، ')}) بـ «${par.n}»` : ''), { batch: tk, count: 1 });
+  await commit(u);
+}
+
+/** إضافة اسم ناقص في وسط السلسلة: بين الشخص وأبيه، فتكتمل السلسلة دون كسرها */
+export async function insertParent(id, name) {
+  await loadPersons();
+  const p = P(id);
+  if (!p) throw err('الشخص غير موجود');
+  if (p.p == null || !P(p.p)) throw err('هذا أعلى جد؛ أضف جداً أعلى من لوحة التحكم ← الأشخاص');
+  name = Names.clean(name || '');
+  const e = nameError(name);
+  if (e) throw err(e);
+  const par = P(p.p);
+  if (childByKey(par.id, Names.key(name)) != null) throw err(`«${par.n}» عنده ابن باسم «${name}» مسبقاً — انقل «${p.n}» تحته بدل الإضافة`);
+  if (!can('add', par.id) || !can('move', id)) throw err('لا تملك صلاحية الإضافة هنا');
+  const [nid] = await allocIds(1);
+  const a = actor();
+  const u = {};
+  u['persons/' + nid] = newRecord(nid, par.id, { name }, a, p.o || nextOrder(par.id), par.path);
+  movePaths(u, id, nid, par.path + par.id + '/');
+  u[`persons/${id}/o`] = 1;
+  u[`persons/${id}/fl`] = null;
+  auditEntry(u, a, 'create', 'person', nid, `أضاف «${name}» في السلسلة بين «${par.n}» وابنه «${p.n}»`);
+  await commit(u);
+  return nid;
+}
+
 export async function restoreBatch(tk) {
   await loadPersons();
   const t = (await get(ref(db, 'trash/' + tk))).val();
   if (!t || !t.persons) throw err('لا توجد عناصر لاستعادتها');
   const top = t.persons[t.root];
   if (top.p != null && !P(top.p)) throw err('لا يمكن الاستعادة: الأب محذوف أيضاً — استعد الأب أولاً');
-  if (top.p != null && kidsOf(top.p).some((x) => P(x).k === top.k)) throw err('لا يمكن الاستعادة: يوجد شخص بالاسم نفسه في الموقع ذاته');
+  const kids = (t.kids || []).filter((k) => P(k));
+  if (top.p != null && kidsOf(top.p).some((x) => !kids.includes(x) && P(x).k === top.k)) throw err('لا يمكن الاستعادة: يوجد شخص بالاسم نفسه في الموقع ذاته');
   const a = actor();
   const u = {};
   Object.entries(t.persons).forEach(([k, v]) => { if (v) u['persons/' + k] = v; }); // تجاهل الخانات الفارغة حتى لا يُحذف أحد
+  kids.forEach((k) => movePaths(u, k, t.root, top.path)); // حذف من وسط السلسلة: يرجع أبناؤه تحته
   u['trash/' + tk] = null;
   auditEntry(u, a, 'restore', 'person', t.root, `استعاد «${top.n}»` + (Object.values(t.persons).filter(Boolean).length > 1 ? ' مع ' + (Object.values(t.persons).filter(Boolean).length - 1) + ' من ذريته' : ''));
   await commit(u);
@@ -1130,11 +1213,11 @@ async function personDetails(id) {
   const privileged = state.viewer.type !== 'public';
   const showBy = privileged || state.settings.show_added_by;
   const out = {
-    id, name: p.n, nickname: p.nick || '', gender: p.g || 'm', is_head: p.head ? 1 : 0, house_name: p.house || '', house_color: p.hc || '',
+    id, name: p.n, nickname: p.nick || '', gender: p.g || 'm', is_head: isHouse(id) ? 1 : 0, house_auto: isAutoHouse(id) ? 1 : 0, house_mode: p.head ? 'on' : p.nh ? 'off' : 'auto', house_min: state.settings.house_min || 20, house_name: p.house || '', house_color: p.hc || '',
     birth_year: p.b || '', death_year: p.y || '', is_deceased: p.dead ? 1 : 0, bio: p.bio || '', status: 'approved', floating: p.fl ? 1 : 0,
     created_at: fmtDt(p.at, false), updated_at: fmtDt(p.ub && p.ub.at), created_by: showBy && p.by ? p.by.l : null, updated_by: showBy && p.ub ? p.ub.l : null,
     lineage: line.map((x) => ({ id: x, name: P(x).n })), gen: line.length,
-    children: kidsOf(id).map((c) => ({ id: c, name: P(c).n, head: P(c).head ? 1 : 0, kids: kidsOf(c).length, pending: false })),
+    children: kidsOf(id).map((c) => ({ id: c, name: P(c).n, head: isHouse(c) ? 1 : 0, kids: kidsOf(c).length, pending: false })),
     descendants: descendants(id).length, siblings: p.p != null ? Math.max(0, kidsOf(p.p).length - 1) : 0,
     house: h != null ? { id: h, name: houseName(h) } : null, submission: null,
     perms: { add: can('add', id) && p.g !== 'f', edit: can('edit', id), move: can('move', id) && p.p != null, reorder: can('reorder', id) && p.p != null,
@@ -1177,6 +1260,8 @@ const handlers = {
   async person_move(d) { await movePerson(+d.id, +d.parent_id); return { ok: true }; },
   async person_merge(d) { await mergePersons(+d.id, +d.target_id); return { ok: true }; },
   async person_delete(d) { return { ok: true, count: await deletePerson(+d.id, !!+d.with_desc) }; },
+  async person_unlink(d) { await removeKeepKids(+d.id); return { ok: true }; },
+  async person_insert_parent(d) { return { ok: true, id: await insertParent(+d.id, d.name) }; },
   async person_reorder(d) { await reorderPerson(+d.id, d.dir); return { ok: true }; },
   async submission_approve(d) { return approveSubmission(d.submission_id); },
   async submission_reject(d) { await rejectSubmission(d.submission_id, d.note); return { ok: true }; },

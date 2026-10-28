@@ -75,7 +75,7 @@ const rules = {
         n: { '.validate': 'newData.isString() && newData.val().length >= 2 && newData.val().length <= 40' },
         k: str(60),
         p: { '.validate': `newData.isNumber() && newData.parent().parent().child('' + newData.val()).exists()` },
-        path: str(4000), o: num, g: str(1), nick: str(80), head: bool, house: str(80), hc: str(7),
+        path: str(4000), o: num, g: str(1), nick: str(80), head: bool, nh: bool, house: str(80), hc: str(7),
         b: num, y: num, dead: bool, bio: str(1000), fl: bool, at: num,
         by: actorRec, ub: { l: str(120), at: num, $other: { '.validate': false } },
         $other: { '.validate': false },

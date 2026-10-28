@@ -93,7 +93,7 @@
       + (kids.has(h.id) ? `<div class="side-sub">${kids.get(h.id).map(item).join('')}</div>` : '');
     const total = tree.order.filter((n) => !n.virtual).length;
     const crown = tree.autoCrown;
-    const branches = crown ? crown.kids.filter((k) => k.kids.length) : [];
+    const branches = crown ? crown.kids.filter((k) => k.kids.length && !k.house) : [];
     $('#houseList').innerHTML = `<button type="button" class="side-item ${!state.root ? 'on' : ''}" data-root="" style="--hc:#2f5d1e">
         <span class="dot"></span><span><b>الشجرة كاملة</b><small>${esc(CFG.clan || '')}</small></span><span class="cnt">${total}</span></button>`
       + (hs.length ? `<div class="side-sec">${icon('crown')}البيوت</div>` + tops.map(item).join('') : '')
@@ -549,16 +549,28 @@
         <label class="field"><span>سنة الوفاة</span><input name="death_year" inputmode="numeric" value="${esc(p.death_year || '')}"></label>
       </div>
       <label class="check"><input type="checkbox" name="is_deceased" ${p.is_deceased ? 'checked' : ''}><span>متوفى (رحمه الله)</span></label>
-      ${P.head ? `<label class="check"><input type="checkbox" name="is_head" ${p.is_head ? 'checked' : ''}><span>رأس بيت (يظهر في قائمة البيوت بتاج ذهبي)</span></label>
+      ${P.head ? `<div class="field"><span>البيت — ${p.is_head ? 'بيت حالياً' : 'ليس بيتاً حالياً'}</span><div class="chips" data-hm>${[['auto', `تلقائي (${p.house_min}+ فرداً)`], ['on', 'بيت دائماً'], ['off', 'ليس بيتاً']].map(([k, t]) => `<button type="button" class="chip${p.house_mode === k ? ' on' : ''}" data-v="${k}">${t}</button>`).join('')}</div></div>
+      <input type="hidden" name="house_mode" value="${esc(p.house_mode)}">
       <div class="grid-2"><label class="field"><span>اسم البيت</span><input name="house_name" value="${esc(p.house_name || '')}" placeholder="بيت ${esc(p.name)}"></label>
       <label class="field"><span>لون البيت</span><input type="color" name="house_color" value="${esc(p.house_color || '#c0392b')}"></label></div>` : ''}
       ${p.phone !== undefined ? `<label class="field"><span>الهاتف (خاص بالمشرف)</span><input name="phone" inputmode="tel" dir="ltr" value="${esc(p.phone || '')}"></label>` : ''}
       <label class="field"><span>نبذة</span><textarea name="bio" rows="3">${esc(p.bio || '')}</textarea></label>
       ${formFoot('حفظ')}`);
+    f.addEventListener('click', (e) => {
+      const c = e.target.closest('[data-hm] [data-v]');
+      if (!c) return;
+      f.house_mode.value = c.dataset.v;
+      $$('[data-hm] [data-v]', f).forEach((x) => x.classList.toggle('on', x === c));
+    });
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
       const d = { id: p.id, name: f.name.value, nickname: f.nickname.value, birth_year: f.birth_year.value, death_year: f.death_year.value, is_deceased: f.is_deceased.checked ? 1 : 0, bio: f.bio.value };
-      if (f.is_head) { d.is_head = f.is_head.checked ? 1 : 0; d.house_name = f.house_name.value; d.house_color = f.house_color.value; }
+      if (f.house_mode) {
+        const hm = f.house_mode.value;
+        d.is_head = hm === 'on' ? 1 : 0; d.no_house = hm === 'off' ? 1 : 0;
+        d.house_name = f.house_name.value;
+        if (p.house_color || f.house_color.value !== '#c0392b') d.house_color = f.house_color.value;
+      }
       if (f.phone) d.phone = f.phone.value;
       try { const r = await api('person_update', d); toast(r.changed.length ? 'تم الحفظ' : 'لا توجد تغييرات'); await refresh(p.id); } catch (x) { toast(x.message, 'err'); }
     });
@@ -677,8 +689,12 @@
       <header class="modal-head"><span class="modal-icon">${icon('edit')}</span><div><h3>تعديل سريع</h3><p>${esc(tree.nasab(n, 5))}</p></div></header>
       <label class="field"><span>الاسم</span><input name="name" value="${esc(n.name)}" required></label>
       <label class="field"><span>إضافة أبناء (اختياري، افصلهم بفاصلة)</span><input name="kids" placeholder="مثال: علي، حسن"></label>
-      <footer class="modal-foot" style="justify-content:space-between">
-        <button class="btn btn-danger-soft" value="delete" type="submit">${icon('trash')}حذف</button>
+      ${n.parent && !n.parent.virtual ? `<label class="field"><span>اسم ناقص قبله؟ (بينه وبين أبيه «${esc(n.parent.name)}»)</span><input name="insert" placeholder="اختياري — يُضاف في وسط السلسلة"></label>` : ''}
+      ${n.kids && n.kids.length ? `<div class="field"><span>البيت</span><button class="btn btn-sm ${n.house ? 'btn-danger-soft' : 'btn-gold'}" value="${n.house ? 'unhouse' : 'house'}" type="submit" formnovalidate>${icon(n.house ? 'x' : 'crown')}${n.house ? 'إلغاء «' + esc(n.house) + '»' : 'اجعله بيتاً'}</button></div>` : ''}
+      <footer class="modal-foot" style="justify-content:space-between;flex-wrap:wrap">
+        <span style="display:flex;gap:6px;flex-wrap:wrap">${n.kids && n.kids.length && n.parent && !n.parent.virtual
+          ? `<button class="btn btn-danger-soft" value="unlink" type="submit" formnovalidate title="يُحذف هو فقط ويرتبط أبناؤه بأبيه">${icon('trash')}حذف وإبقاء أبنائه</button><button class="btn btn-ghost" value="delete" type="submit" formnovalidate style="color:var(--danger)">حذف مع ذريته</button>`
+          : `<button class="btn btn-danger-soft" value="delete" type="submit" formnovalidate>${icon('trash')}حذف</button>`}</span>
         <span style="display:flex;gap:8px"><button class="btn btn-ghost" value="cancel" formnovalidate>إلغاء</button><button class="btn btn-primary" value="save" type="submit">${icon('check')}حفظ</button></span>
       </footer></form>`;
     document.body.appendChild(d);
@@ -690,10 +706,23 @@
         if (act === 'save') {
           const name = Names.clean(f.name.value);
           if (name && name !== n.name) await api('person_update', { id: n.id, name });
+          const ins = f.insert ? Names.clean(f.insert.value) : '';
+          if (ins) await api('person_insert_parent', { id: n.id, name: ins });
           let added = 0;
           for (const k of f.kids.value.split(/[،,\n]+/).map((x) => Names.clean(x)).filter(Boolean)) { await api('person_add', { parent_id: n.id, name: k }); added++; }
-          toast(added ? `تم الحفظ وإضافة ${added} من الأبناء` : 'تم الحفظ');
+          toast(ins ? `أُضيف «${ins}» في السلسلة بين «${n.parent.name}» و«${name || n.name}»` : added ? `تم الحفظ وإضافة ${added} من الأبناء` : 'تم الحفظ');
           await refresh(n.id);
+        } else if (act === 'house' || act === 'unhouse') {
+          await api('person_update', act === 'house' ? { id: n.id, is_head: 1, no_house: 0 } : { id: n.id, is_head: 0, no_house: 1 });
+          toast(act === 'house' ? 'أصبح بيتاً' : 'أُلغي البيت — يمكنك إرجاعه من لوحة التحكم ← البيوت');
+          await refresh(n.id);
+        } else if (act === 'unlink') {
+          const r = await App.confirm({ title: 'حذف «' + n.name + '» فقط', text: `يُحذف «${n.name}» من السلسلة ويرتبط أبناؤه (${n.kids.map((k) => k.name).join('، ')}) بأبيه «${n.parent.name}» مباشرة. يمكن التراجع من سجل العمليات.`, danger: true, ok: 'حذف وربط الأبناء' });
+          if (!r) return;
+          await api('person_unlink', { id: n.id });
+          closeDrawer();
+          await refresh(n.parent.id);
+          toast('تم الحذف وارتبط أبناؤه بـ «' + n.parent.name + '»');
         } else if (act === 'delete') {
           const hasKids = n.kids && n.kids.length;
           const r = await App.confirm({ title: 'حذف «' + n.name + '»', text: hasKids ? 'سيُحذف مع ذريته (' + n.desc + '). يمكن الاستعادة من سجل العمليات.' : 'يمكن الاستعادة من سجل العمليات.', danger: true, ok: 'حذف' });

@@ -183,7 +183,13 @@ async function lastN(path, n) {
   return out.reverse();
 }
 const dayKey = (ms) => { const d = new Date(ms); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
-const houses = () => [...state.map.values()].filter((p) => p.head);
+const houses = () => S.houseList().map(P);
+/** اختيار وضع البيت: تلقائي حسب العدد، أو بيت دائماً، أو ليس بيتاً */
+function houseModeSeg(id) {
+  const p = P(id), cur = p.head ? 'on' : p.nh ? 'off' : 'auto';
+  const opts = [['auto', `تلقائي (${(state.settings.house_min || 20)}+ فرداً)`], ['on', 'بيت دائماً'], ['off', 'ليس بيتاً']];
+  return `<div class="radio-row">${opts.map(([k, t]) => `<label class="radio-pill"><input type="radio" name="house_mode" value="${k}" ${cur === k ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
+}
 function auditAdmin(u, action, entity, eid, sum, b, a) { S.auditEntry(u, S.actor(), action, entity, eid, sum, b, a); }
 
 /* ───────────── لوحة المعلومات ───────────── */
@@ -322,7 +328,7 @@ PAGES.people = async (arg, sub) => {
       ${by ? `<span class="badge badge-info">أضافه: ${esc(by)}</span><input type="hidden" name="by" value="${esc(by)}">` : ''}
       <button class="btn btn-sm btn-primary" type="submit">${icon('filter')}تصفية</button><button class="btn btn-sm btn-outline" type="button" data-act="csv">${icon('download')}CSV</button></form>
       <div class="table-wrap"><table class="t"><thead><tr><th>الاسم والنسب</th><th>الجيل</th><th>البيت</th><th>الأبناء</th><th>أضافه</th><th>التاريخ</th><th></th></tr></thead><tbody>
-      ${slice.map((id) => { const p = P(id), h = S.houseOf(id); return `<tr><td class="nm"><b>${p.head ? icon('crown') + ' ' : ''}${esc(p.n)}${p.fl ? ' <span class="badge badge-info">غير مربوط</span>' : ''}</b><small>${esc(S.nasab(id, 6))}</small></td>
+      ${slice.map((id) => { const p = P(id), h = S.houseOf(id); return `<tr><td class="nm"><b>${S.isHouse(id) ? icon('crown') + ' ' : ''}${esc(p.n)}${p.fl ? ' <span class="badge badge-info">غير مربوط</span>' : ''}</b><small>${esc(S.nasab(id, 6))}</small></td>
         <td class="num">${S.depthOf(id)}</td><td>${h != null ? `<span class="swatch" style="background:${esc(P(h).hc || '#d9ae22')}"></span> ${esc(S.houseName(h))}` : '—'}</td><td class="num">${S.kidsOf(id).length}</td>
         <td><small>${esc(p.by ? p.by.l : '')}</small></td><td class="num"><small>${S.fmtDt(p.at, false)}</small></td>
         <td><div class="acts"><a class="btn btn-xs btn-outline" href="#people/${id}">${icon('edit')}تعديل</a><a class="btn btn-xs btn-ghost" href="./?focus=${id}" target="_blank">${icon('tree')}</a></div></td></tr>`; }).join('') || `<tr><td colspan="7">${empty('search', 'لا توجد نتائج')}</td></tr>`}
@@ -352,16 +358,18 @@ async function personEdit(id) {
         <label class="field"><span>الهاتف (خاص)</span><input name="phone" dir="ltr" value="${esc(phone)}"></label>
         <div class="field"><span>&nbsp;</span><label class="check"><input type="checkbox" name="is_deceased" ${p.dead ? 'checked' : ''}><span>متوفى (رحمه الله)</span></label></div>
         <div class="full" style="border:1px dashed var(--line-strong);border-radius:14px;padding:12px 14px 2px;margin-bottom:14px">
-          <label class="check"><input type="checkbox" name="is_head" ${p.head ? 'checked' : ''}><span><b>رأس بيت</b> — يظهر في قائمة البيوت وله شجرة خاصة ويمكن منحه رمزاً</span></label>
+          <div class="field"><span><b>البيت</b> — ${S.isHouse(id) ? `${icon('crown')} «${esc(S.houseName(id))}» بيت حالياً` : 'ليس بيتاً حالياً'}</span>${houseModeSeg(id)}</div>
           <div class="form-grid"><label class="field"><span>اسم البيت</span><input name="house_name" value="${esc(p.house || '')}" placeholder="بيت ${esc(p.n)}"></label><label class="field"><span>لون البيت</span><input type="color" name="house_color" value="${esc(p.hc || '#c0392b')}"></label></div></div>
         <label class="field full"><span>نبذة</span><textarea name="bio" rows="3">${esc(p.bio || '')}</textarea></label>
         <div class="full sub-meta"><span>${icon('user-plus')}أضافه: ${esc(p.by ? p.by.l : '—')} · ${S.fmtDt(p.at)}</span>${p.ub ? `<span>${icon('edit')}آخر تعديل: ${esc(p.ub.l)} · ${S.fmtDt(p.ub.at)}</span>` : ''}</div>
       </div><div class="save-bar"><button class="btn btn-primary" type="submit">${icon('check')}حفظ التعديلات</button></div></form>
       <div style="display:grid;gap:18px;align-content:start">
-        ${panel('الأبناء', 'users', `<div class="panel-body"><div class="kids" style="margin-bottom:12px">${kids.map((c) => `<a class="badge" href="#people/${c}">${P(c).head ? icon('crown') : ''}${esc(P(c).n)}</a>`).join('') || '<span class="muted">لا يوجد أبناء</span>'}</div>
+        ${panel('الأبناء', 'users', `<div class="panel-body"><div class="kids" style="margin-bottom:12px">${kids.map((c) => `<a class="badge" href="#people/${c}">${S.isHouse(c) ? icon('crown') : ''}${esc(P(c).n)}</a>`).join('') || '<span class="muted">لا يوجد أبناء</span>'}</div>
           <form style="display:flex;gap:8px" data-form="kids-add" data-id="${id}"><input name="names" placeholder="أسماء الأبناء مفصولة بفاصلة" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form></div>`)}
         ${panel('نقل ودمج', 'move', `<div class="panel-body">${p.p != null ? `<form style="margin-bottom:14px" data-form="move" data-id="${id}"><label class="field"><span>${p.fl ? 'ربطه بأبيه الحقيقي' : 'نقل مع ذريته تحت أب آخر'}</span>${picker('parent', 'ابحث عن الأب الجديد…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('move')}نقل</button></form>` : ''}
           <form data-form="merge" data-id="${id}"><label class="field"><span>دمج هذا الشخص (المكرر) في الشخص الصحيح</span>${picker('target', 'ابحث عن الشخص الصحيح…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('merge')}دمج</button></form></div>`)}
+        ${p.p != null ? panel('اسم ناقص في السلسلة', 'plus', `<div class="panel-body"><form style="display:flex;gap:8px" data-form="insert-parent" data-id="${id}"><input name="name" placeholder="الاسم بين «${esc(P(p.p) ? P(p.p).n : '')}» و«${esc(p.n)}»" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form></div>`) : ''}
+        ${kids.length && p.p != null ? panel('حذفه وإبقاء أبنائه', 'link', `<div class="panel-body"><p class="muted" style="margin:0 0 10px">إن كان الاسم خطأً: يُحذف «${esc(p.n)}» وحده ويرتبط أبناؤه (${kids.map((c) => esc(P(c).n)).join('، ')}) بـ «${esc(P(p.p) ? P(p.p).n : '')}» مباشرة.</p><button class="btn btn-sm btn-danger-soft" data-act="unlink" data-id="${id}">${icon('trash')}حذف وربط الأبناء</button></div>`) : ''}
         ${panel('حذف', 'trash', `<div class="panel-body"><form class="danger-zone" data-form="delete" data-id="${id}" data-desc="${desc.length}">${desc.length ? `<label class="check"><input type="checkbox" name="with_desc" required><span>أفهم أن الحذف يشمل ${desc.length} من ذريته</span></label>` : ''}<button class="btn btn-sm btn-danger" type="submit">${icon('trash')}حذف «${esc(p.n)}»</button></form></div>`)}
       </div></div>
     ${panel('سجل هذا الشخص', 'history', `<div class="feed">${history.map((h) => `<div class="feed-item"><span class="feed-dot ${(ACTIONS[h.a] || [])[1] || ''}">${icon('history')}</span><div><p>${badgeAct(h.a)} ${esc(h.s)}</p><small>${esc(h.l)} · ${S.fmtDt(h.at)} · ${esc(h.dev || '')}</small></div></div>`).join('') || empty('history', 'لا توجد عمليات مسجلة')}</div>`)}`;
@@ -373,19 +381,11 @@ PAGES.houses = async (edit) => {
   setTitle('البيوت', 'house');
   const e = edit ? P(edit) : null;
   const root0 = S.rootId();
-  const codes = isManager() ? await vals('codes') : [];
-  const hs = houses().map((h) => ({ h, members: S.descendants(h.id).length + 1, gen: S.depthOf(h.id), gens: Math.max(0, ...S.descendants(h.id).map((d) => S.depthOf(d) - S.depthOf(h.id))) + 1,
-    codes: codes.filter((c) => +c.scope === h.id) })).sort((a, b) => a.gen - b.gen || b.members - a.members);
+  const hs = houses().map((h) => ({ h, members: S.descendants(h.id).length + 1, gen: S.depthOf(h.id), gens: Math.max(0, ...S.descendants(h.id).map((d) => S.depthOf(d) - S.depthOf(h.id))) + 1
+  })).sort((a, b) => a.gen - b.gen || b.members - a.members);
   const floating = [...state.map.values()].filter((p) => p.fl);
-  let crown = root0;
-  while (crown != null && S.kidsOf(crown).length === 1) crown = S.kidsOf(crown)[0];
-  const suggest = [];
-  let level = crown != null ? S.kidsOf(crown) : [];
-  for (let g = 1; g <= 3 && level.length; g++) {
-    const next = [];
-    level.forEach((c) => { const n = S.descendants(c).length; if (n >= 2 && !P(c).head) suggest.push({ id: c, members: n + 1, g }); next.push(...S.kidsOf(c)); });
-    level = next;
-  }
+  const off = [...state.map.values()].filter((p) => p.nh);
+  const min = state.settings.house_min || 20;
   view().innerHTML = panel(e ? 'تعديل ' + esc(e.house || 'بيت ' + e.n) : 'إنشاء بيت جديد', e ? 'edit' : 'plus', `<form class="panel-body form-grid" data-form="house-save" data-id="${e ? e.id : ''}">
       ${e ? `<div class="field"><span>رأس البيت</span><b style="padding:.5em 0">${esc(S.nasab(e.id, 6))}</b></div>` : `<label class="field"><span>اسم رأس البيت</span><input name="new_name" placeholder="مثال: محمد"><small>يُضاف تلقائياً إلى الشجرة إن لم يكن موجوداً.</small></label>
       <label class="field"><span>ابن مَن؟ (أبوه في الشجرة)</span>${picker('parent', 'ابحث عن الأب…', root0)}<small>الافتراضي: الجد الأكبر.</small></label>
@@ -397,14 +397,20 @@ PAGES.houses = async (edit) => {
       ${floating.map((f) => `<tr><td class="nm"><b>${esc(f.n)}</b><small>معلق مؤقتاً بـ «${esc(P(f.p) ? P(f.p).n : '')}»</small></td><td class="num">${S.descendants(f.id).length + 1}</td>
         <td style="min-width:280px"><form style="display:flex;gap:6px;align-items:flex-start" data-form="link" data-id="${f.id}"><div style="flex:1">${picker('parent', 'ابحث عن أبيه في الشجرة…')}</div><button class="btn btn-xs btn-primary" type="submit" style="margin-top:6px">${icon('link')}ربط</button></form></td>
         <td><div class="acts"><a class="btn btn-xs btn-ghost" href="./?focus=${f.id}" target="_blank">${icon('tree')}</a><button class="btn btn-xs btn-outline" data-act="confirm-link" data-id="${f.id}" data-parent="${f.p}">${icon('check')}ابن مباشر لـ${esc(P(f.p) ? P(f.p).n : '')}</button></div></td></tr>`).join('')}</tbody></table></div>`, '', 'عائلات لم يُعثر على أجدادها بعد، فهي معلقة بالجذر بخط منقط. ترتبط تلقائياً عندما يضيف أحد أقاربها نسباً يجمعها، أو اربطها هنا.') : '')
-    + (suggest.length && !e ? panel(`فروع تلقائية من الجد «${esc(P(crown).n)}»`, 'branch', `<div class="table-wrap"><table class="t"><thead><tr><th>الفرع</th><th>الجيل من الجد الجامع</th><th>الأفراد</th><th></th></tr></thead><tbody>
-      ${suggest.slice(0, 24).map((s) => `<tr><td class="nm"><b>${esc(P(s.id).n)}</b><small>${esc(S.nasab(s.id, 5))}</small></td><td class="num">${S.genOrdinal(s.g)}</td><td class="num">${s.members}</td>
-        <td><div class="acts"><button class="btn btn-xs btn-gold" data-act="make-house" data-id="${s.id}">${icon('crown')}اجعله بيتاً</button></div></td></tr>`).join('')}</tbody></table></div>`, '', 'هذه الفروع تظهر في الشجرة تلقائياً. اضغط «اجعله بيتاً» لتسميته وإعطائه رمزاً.') : '')
-    + panel(`بيوت العشيرة (${hs.length})`, 'house', `<div class="table-wrap"><table class="t"><thead><tr><th>البيت</th><th>الجيل</th><th>الأفراد</th><th>الأجيال</th><th>الرموز</th><th></th></tr></thead><tbody>
-      ${hs.map(({ h, members, gen, gens, codes: cc }) => `<tr><td class="nm"><b><span class="swatch" style="background:${esc(h.hc || '#d9ae22')}"></span> ${esc(h.house || 'بيت ' + h.n)}</b><small>${esc(S.nasab(h.id, 5))}</small></td>
-        <td class="num">${gen}</td><td class="num"><b>${members}</b></td><td class="num">${gens}</td><td>${cc.length ? `<span class="badge badge-gold">${cc.filter((c) => c.active).length} فعال / ${cc.length}</span>` : '<span class="muted">—</span>'}</td>
-        <td><div class="acts"><a class="btn btn-xs btn-outline" href="./?root=${h.id}" target="_blank">${icon('tree')}الشجرة</a>${isManager() ? `<a class="btn btn-xs btn-gold" href="#codes/new/${h.id}">${icon('key')}رمز</a>` : ''}
-        <a class="btn btn-xs btn-ghost" href="#houses/${h.id}">${icon('edit')}</a><button class="btn btn-xs btn-ghost" data-act="unhouse" data-id="${h.id}" title="إزالة البيت">${icon('x')}</button></div></td></tr>`).join('') || `<tr><td colspan="6">${empty('house', 'لم تُحدَّد بيوت بعد — أنشئ أول بيت من النموذج أعلاه')}</td></tr>`}</tbody></table></div>`);
+    + panel(`بيوت العشيرة (${hs.length})`, 'house', `<form class="panel-body house-min" data-form="settings" data-tab="houses">
+        ${icon('sparkles')}<span>كل من ذريته</span><input type="number" name="house_min" min="2" max="500" value="${min}" inputmode="numeric"><span>فرداً فأكثر يصير <b>بيتاً تلقائياً</b>.</span>
+        <button class="btn btn-sm btn-outline" type="submit">${icon('check')}حفظ</button></form>
+      <div class="table-wrap"><table class="t"><thead><tr><th>البيت</th><th>النوع</th><th>الجيل</th><th>الأفراد</th><th>الأجيال</th><th></th></tr></thead><tbody>
+      ${hs.map(({ h, members, gen, gens }) => `<tr><td class="nm"><b><span class="swatch" style="background:${esc(h.hc || '#d9ae22')}"></span> ${esc(S.houseName(h.id))}</b><small>${esc(S.nasab(h.id, 5))}</small></td>
+        <td>${S.isAutoHouse(h.id) ? '<span class="badge badge-info">تلقائي</span>' : '<span class="badge badge-gold">ثابت (يدوي)</span>'}</td>
+        <td class="num">${gen}</td><td class="num"><b>${members}</b></td><td class="num">${gens}</td>
+        <td><div class="acts"><a class="btn btn-xs btn-outline" href="./?root=${h.id}" target="_blank">${icon('tree')}الشجرة</a>
+        <a class="btn btn-xs btn-ghost" href="#houses/${h.id}" title="الاسم واللون">${icon('edit')}</a>
+        ${S.isAutoHouse(h.id) ? '' : `<button class="btn btn-xs btn-ghost" data-act="house-auto" data-id="${h.id}" title="يرجع يُحسب حسب العدد">${icon('refresh')}تلقائي</button>`}
+        <button class="btn btn-xs btn-danger-soft" data-act="unhouse" data-id="${h.id}">${icon('x')}إلغاء البيت</button></div></td></tr>`).join('') || `<tr><td colspan="6">${empty('house', 'لا توجد بيوت بعد — تظهر تلقائياً عندما تكبر العوائل')}</td></tr>`}</tbody></table></div>`, '', `البيت = رأس البيت وكل ذريته. تُضاف البيوت تلقائياً عندما تبلغ الذرية ${min} فرداً، ويمكنك إلغاء أي بيت أو تثبيت أي شخص بيتاً.`)
+    + (off.length ? panel(`بيوت ألغيتها (${off.length})`, 'x', `<div class="table-wrap"><table class="t"><tbody>
+      ${off.map((p) => `<tr><td class="nm"><b>${esc(p.n)}</b><small>${esc(S.nasab(p.id, 5))} · ${S.descCount(p.id) + 1} فرداً</small></td>
+        <td><div class="acts"><button class="btn btn-xs btn-outline" data-act="house-auto" data-id="${p.id}">${icon('refresh')}إرجاع للتلقائي</button><button class="btn btn-xs btn-gold" data-act="make-house" data-id="${p.id}">${icon('crown')}اجعله بيتاً</button></div></td></tr>`).join('')}</tbody></table></div>`, '', 'هؤلاء لن يصبحوا بيوتاً مهما كبرت ذريتهم حتى ترجعهم.') : '');
   bindPickers(view());
 };
 
@@ -644,9 +650,12 @@ document.addEventListener('submit', async (e) => {
     }
     if (kind === 'person-save') {
       const data = Object.fromEntries(fd);
-      data.is_head = fd.get('is_head') ? 1 : 0;
+      const hm = fd.get('house_mode') || 'auto';
+      data.is_head = hm === 'on' ? 1 : 0;
+      data.no_house = hm === 'off' ? 1 : 0;
+      delete data.house_mode;
       data.is_deceased = fd.get('is_deceased') ? 1 : 0;
-      if (!data.is_head) delete data.house_color;
+      if (hm === 'off') delete data.house_color;
       const r = await run(() => S.updatePerson(id, data));
       if (r !== false) toast(r.length ? 'تم حفظ التعديلات' : 'لا توجد تغييرات');
       return route();
@@ -660,6 +669,11 @@ document.addEventListener('submit', async (e) => {
       if (!val('target')) return toast('اختر الشخص من نتائج البحث', 'err');
       if (!(await App.confirm({ title: 'دمج', text: 'سيُحذف هذا الشخص وتنتقل ذريته إلى الشخص المختار.', danger: true, ok: 'دمج' }))) return;
       if (await run(() => S.mergePersons(id, +val('target')), 'تم الدمج')) go('people/' + val('target'));
+      return;
+    }
+    if (kind === 'insert-parent') {
+      const nid = await run(() => S.insertParent(id, val('name')), 'أُضيف الاسم في السلسلة');
+      if (nid) go('people/' + id);
       return;
     }
     if (kind === 'delete') {
@@ -678,7 +692,9 @@ document.addEventListener('submit', async (e) => {
           pid = twin ?? await S.addPerson(parent, { name: newName });
         }
         if (!pid) throw new Error('اكتب اسم رأس البيت أو اختر شخصاً موجوداً');
-        await S.updatePerson(pid, { is_head: 1, house_name: val('house_name') || 'بيت ' + P(pid).n, house_color: val('house_color') });
+        // تعديل اسم/لون بيت تلقائي لا يغيّر كونه تلقائياً؛ البيت الجديد يدوي دائماً
+        const keepAuto = id && S.isAutoHouse(pid);
+        await S.updatePerson(pid, { ...(keepAuto ? {} : { is_head: 1, no_house: 0 }), house_name: val('house_name') || 'بيت ' + P(pid).n, house_color: val('house_color') });
       }, 'تم حفظ البيت');
       return go('houses');
     }
@@ -711,6 +727,7 @@ async function saveSettings(f, fd) {
   }
   if (tab === 'security') { out.registration_mode = fd.get('registration_mode') || 'review'; bools(['require_phone', 'show_added_by']); pick(['blocked_words']); }
   if (tab === 'tree') { out.default_color_mode = fd.get('default_color_mode'); out.gen_colors = fd.getAll('gen_colors'); ['color_trunk', 'color_root', 'color_leaf', 'color_branch', 'color_head', 'color_son'].forEach((k) => { out[k] = fd.get(k); }); bools(['show_years', 'show_females']); }
+  if (tab === 'houses') out.house_min = Math.min(500, Math.max(2, Math.round(+fd.get('house_min') || 20)));
   if (tab === 'verses') pick(['verse_1', 'verse_1_ref', 'verse_2', 'verse_2_ref']);
   if (tab === 'maintenance') { out.maintenance = fd.get('maintenance') === '1'; pick(['maintenance_msg']); bools(['track_visits']); }
   const changed = Object.keys(out).filter((k) => JSON.stringify(out[k]) !== JSON.stringify(s[k]));
@@ -718,7 +735,7 @@ async function saveSettings(f, fd) {
   const u = {};
   changed.forEach((k) => { u['settings/' + k] = out[k]; });
   u['meta/srev'] = TS();
-  auditAdmin(u, 'settings', 'settings', null, `عدّل الإعدادات (${TABS[tab][0]}): ${changed.join('، ')}` + (tab === 'maintenance' ? (out.maintenance ? ' — تفعيل وضع الصيانة' : ' — إيقاف وضع الصيانة') : ''));
+  auditAdmin(u, 'settings', 'settings', null, `عدّل الإعدادات (${(TABS[tab] || ['البيوت'])[0]}): ${changed.join('، ')}` + (tab === 'maintenance' ? (out.maintenance ? ' — تفعيل وضع الصيانة' : ' — إيقاف وضع الصيانة') : ''));
   if (await run(() => update(ref(db), u), tab === 'maintenance' ? (out.maintenance ? 'تم تفعيل وضع الصيانة' : 'الموقع يعمل الآن للجميع') : 'تم حفظ الإعدادات')) route();
 }
 
@@ -755,8 +772,15 @@ document.addEventListener('click', async (e) => {
     if (ok) { await refreshCounts(); route(); }
   }
   if (act === 'confirm-link') { if (await run(() => S.movePerson(id, +b.dataset.parent), 'تم تأكيد الربط')) route(); }
-  if (act === 'make-house') { if (await run(() => S.updatePerson(id, { is_head: 1, house_name: 'بيت ' + P(id).n, house_color: PALETTE[id % PALETTE.length] }), 'أصبح بيتاً')) route(); }
-  if (act === 'unhouse') { if (await App.confirm({ title: 'إزالة البيت', text: 'لن يُحذف أي فرد.', ok: 'إزالة' }) && await run(() => S.updatePerson(id, { is_head: 0 }), 'أُزيلت صفة البيت')) route(); }
+  if (act === 'make-house') { if (await run(() => S.setHouseMode(id, 'on'), 'أصبح بيتاً')) route(); }
+  if (act === 'unhouse') { if (await App.confirm({ title: 'إلغاء البيت', text: `«${S.houseName(id)}» لن يبقى بيتاً، ولن يُحذف أي فرد. يمكنك إرجاعه لاحقاً.`, ok: 'إلغاء البيت' }) && await run(() => S.setHouseMode(id, 'off'), 'أُلغي البيت')) route(); }
+  if (act === 'unlink') {
+    if (!(await App.confirm({ title: 'حذف وربط الأبناء', text: 'يمكن التراجع من سجل العمليات.', danger: true, ok: 'حذف' }))) return;
+    const par = P(id).p;
+    if (await run(() => S.removeKeepKids(id), 'تم الحذف وارتبط الأبناء بأبيه')) go('people/' + par);
+    return;
+  }
+  if (act === 'house-auto') { if (await run(() => S.setHouseMode(id, 'auto'), 'رجع للوضع التلقائي')) route(); }
   if (act === 'code-toggle') {
     const c = (await get(ref(db, 'codes/' + id))).val();
     const u = { [`codes/${id}/active`]: !c.active };
@@ -810,7 +834,7 @@ document.addEventListener('click', async (e) => {
   }
   if (act === 'csv') {
     const lines = [['الرقم', 'الاسم', 'النسب الكامل', 'الأب', 'الجيل', 'البيت', 'رأس بيت', 'الكنية', 'الميلاد', 'الوفاة', 'الأبناء', 'أضافه', 'تاريخ الإضافة']];
-    state.map.forEach((p) => { const h = S.houseOf(p.id); lines.push([p.id, p.n, S.nasab(p.id, 0, true), p.p != null && P(p.p) ? P(p.p).n : '', S.depthOf(p.id), h != null ? S.houseName(h) : '', p.head ? 'نعم' : '', p.nick || '', p.b || '', p.y || '', S.kidsOf(p.id).length, p.by ? p.by.l : '', S.fmtDt(p.at)]); });
+    state.map.forEach((p) => { const h = S.houseOf(p.id); lines.push([p.id, p.n, S.nasab(p.id, 0, true), p.p != null && P(p.p) ? P(p.p).n : '', S.depthOf(p.id), h != null ? S.houseName(h) : '', S.isHouse(p.id) ? 'نعم' : '', p.nick || '', p.b || '', p.y || '', S.kidsOf(p.id).length, p.by ? p.by.l : '', S.fmtDt(p.at)]); });
     download(`clan-people-${new Date().toISOString().slice(0, 10)}.csv`, '﻿' + lines.map((l) => l.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n'), 'text/csv');
   }
   if (act === 'wipe') {
