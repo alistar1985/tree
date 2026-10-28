@@ -11,7 +11,7 @@ import {
 import {
   getDatabase, ref, get, update, push, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast, equalTo,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js?v=17';
+import { firebaseConfig } from './firebase-config.js?v=18';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -633,6 +633,38 @@ export async function removeKeepKids(id) {
   order.forEach((x, i) => { u[`persons/${x}/o`] = i + 1; });
   u['persons/' + id] = null;
   auditEntry(u, a, 'delete', 'person', +id, `حذف «${nasab(id, 3)}» من السلسلة` + (kids.length ? ` وربط أبناءه (${kids.map((k) => P(k).n).join('، ')}) بـ «${par.n}»` : ''), { batch: tk, count: 1 });
+  await commit(u);
+}
+
+/** تبديل مكان جد مع ابنه الوحيد في سلسلة الجذع: يصعد الأب درجة وينزل الابن درجة، وتبقى بقية السلسلة كما هي */
+export async function swapWithChild(id) {
+  await loadPersons();
+  const a = P(id);
+  if (!a) throw err('الشخص غير موجود');
+  const ks = kidsOf(id);
+  if (ks.length !== 1) throw err('يمكن تبديل المكان فقط مع ابن وحيد في السلسلة');
+  if (!can('move', id)) throw err('لا تملك صلاحية التعديل هنا');
+  const b = P(ks[0]);
+  const rest = kidsOf(b.id);
+  const act = actor();
+  const u = {};
+  // B يأخذ مكان A، ثم A تحت B، ثم أبناء B تحت A
+  const gp = a.p != null && P(a.p) ? a.p : null;
+  const basePath = a.path; // مسار A الحالي = مسار B الجديد
+  u[`persons/${b.id}/p`] = gp;
+  u[`persons/${b.id}/path`] = basePath;
+  u[`persons/${b.id}/o`] = a.o || 1;
+  u[`persons/${id}/p`] = b.id;
+  u[`persons/${id}/path`] = basePath + b.id + '/';
+  u[`persons/${id}/o`] = 1;
+  const aPath = basePath + b.id + '/' + id + '/';
+  rest.forEach((k) => {
+    u[`persons/${k}/p`] = +id;
+    const oldPrefix = P(k).path; // = basePath + A + '/' + B + '/'
+    u[`persons/${k}/path`] = aPath;
+    descendants(k).forEach((d) => { u[`persons/${d}/path`] = aPath + P(d).path.slice(oldPrefix.length); });
+  });
+  auditEntry(u, act, 'move', 'person', +id, `بدّل مكان «${a.n}» و«${b.n}» في سلسلة الأجداد`);
   await commit(u);
 }
 

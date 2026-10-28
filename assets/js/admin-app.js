@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=17';
+import * as S from './store.js?v=18';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -404,17 +404,22 @@ PAGES.trunk = async () => {
   const rows = chain.slice().reverse().map((id, i) => {
     const pos = n - i; // 1 = القاع
     const isCrown = id === crown, isRoot = pos === 1;
+    const canUp = S.kidsOf(id).length === 1, canDown = !isRoot;
     return `<li class="tr-row ${isCrown ? 'crown' : ''}">
       <span class="tr-n">${isCrown ? icon('crown') : pos}</span>
-      <form class="tr-name" data-form="trunk-rename" data-id="${id}"><input name="name" value="${esc(P(id).n)}" required><button class="btn btn-xs btn-ghost" type="submit" title="حفظ الاسم">${icon('check')}</button></form>
-      <span class="tr-tag">${isCrown ? (branching ? 'الجد الجامع — منه يبدأ التفرع' : 'آخر اسم في السلسلة') : isRoot ? 'القاع — أقدم جد' : ''}</span>
-      <div class="acts">${!isCrown || branching ? `<button class="btn btn-xs btn-outline" data-act="trunk-after" data-id="${id}" title="إضافة اسم بعده (فوقه في الجذع)">${icon('plus')}بعده</button>` : ''}
-        ${(isRoot && S.kidsOf(id).length === 1) || (!isRoot && !isCrown) ? `<button class="btn btn-xs btn-danger-soft" data-act="trunk-del" data-id="${id}" title="حذفه من السلسلة مع إبقاء ما بعده">${icon('trash')}</button>` : ''}</div>
-      <form class="tr-after" data-form="trunk-after" data-id="${id}" hidden><input name="name" placeholder="الاسم بعد «${esc(P(id).n)}»" required><button class="btn btn-xs btn-primary" type="submit">${icon('plus')}إضافة</button></form></li>`;
+      <form class="tr-name" data-form="trunk-rename" data-id="${id}"><input name="name" value="${esc(P(id).n)}" required title="اكتب الاسم الصحيح ثم اضغط خارج الخانة"></form>
+      <div class="tr-acts">
+        <button class="tr-btn" data-act="trunk-up" data-id="${id}" ${canUp ? '' : 'disabled'} title="رفعه درجة (نحو الأحدث)">${icon('arrow-up')}</button>
+        <button class="tr-btn dn" data-act="trunk-down" data-id="${id}" ${canDown ? '' : 'disabled'} title="إنزاله درجة (نحو القاع)">${icon('arrow-up')}</button>
+        <button class="tr-btn" data-act="trunk-after" data-id="${id}" title="إضافة اسم فوقه">${icon('plus')}</button>
+        <button class="tr-btn del" data-act="trunk-del" data-id="${id}" ${(isRoot && S.kidsOf(id).length === 1) || (!isRoot && !isCrown) || (isCrown && !branching && !isRoot) ? '' : 'disabled'} title="حذفه وإبقاء السلسلة">${icon('trash')}</button>
+      </div>
+      ${isCrown || isRoot ? `<span class="tr-tag">${isCrown ? (branching ? 'الجد الجامع — منه يبدأ التفرع' : 'آخر اسم') : 'القاع — أقدم جد'}</span>` : ''}
+      <form class="tr-after" data-form="trunk-after" data-id="${id}" hidden><input name="name" placeholder="الاسم فوق «${esc(P(id).n)}»" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form></li>`;
   }).join('');
   view().innerHTML = `<div class="grid-panels c2">
     ${panel('سلسلة الأجداد', 'tree', `<div class="panel-body"><ol class="tr-list">${rows}</ol>
-      <form class="tr-add" data-form="trunk-before-root" data-id="${chain[0]}"><input name="name" placeholder="جد أقدم من «${esc(P(chain[0]).n)}» (يُضاف في القاع)" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة في القاع</button></form></div>`, '', 'من الأحدث (فوق) إلى الأقدم (القاع). «بعده» يضيف اسماً بينه وبين ما فوقه دون كسر السلسلة.')}
+      <form class="tr-add" data-form="trunk-before-root" data-id="${chain[0]}"><input name="name" placeholder="جد أقدم من «${esc(P(chain[0]).n)}» (يُضاف في القاع)" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة في القاع</button></form></div>`, '', 'الأحدث فوق والأقدم في القاع. ↑ ↓ لتغيير المكان، + لإضافة اسم فوقه، وعدّل أي اسم بالكتابة عليه مباشرة.')}
     <div style="display:grid;gap:18px;align-content:start">
       ${panel('كيف تظهر على الشجرة', 'eye', `<div class="panel-body">${preview}</div>`)}
       ${panel('إضافة عدة أجداد دفعة واحدة', 'plus', `<form class="panel-body" data-form="trunk-bulk">
@@ -822,6 +827,11 @@ async function saveSettings(f, fd) {
   if (await run(() => update(ref(db), u), tab === 'maintenance' ? (out.maintenance ? 'تم تفعيل وضع الصيانة' : 'الموقع يعمل الآن للجميع') : 'تم حفظ الإعدادات')) route();
 }
 
+// تعديل اسم في سلسلة الأجداد يُحفظ بمجرد الخروج من الخانة
+document.addEventListener('change', (e) => {
+  const f = e.target.closest('form[data-form="trunk-rename"]');
+  if (f && root.contains(f)) f.requestSubmit();
+});
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]');
   if (!b || !root.contains(b) || b.tagName === 'SELECT') return;
@@ -857,6 +867,11 @@ document.addEventListener('click', async (e) => {
   if (act === 'confirm-link') { if (await run(() => S.movePerson(id, +b.dataset.parent), 'تم تأكيد الربط')) route(); }
   if (act === 'make-house') { if (await run(() => S.setHouseMode(id, 'on'), 'أصبح بيتاً')) route(); }
   if (act === 'unhouse') { if (await App.confirm({ title: 'إلغاء البيت', text: `«${S.houseName(id)}» لن يبقى بيتاً، ولن يُحذف أي فرد. يمكنك إرجاعه لاحقاً.`, ok: 'إلغاء البيت' }) && await run(() => S.setHouseMode(id, 'off'), 'أُلغي البيت')) route(); }
+  if (act === 'trunk-up' || act === 'trunk-down') {
+    const a = act === 'trunk-up' ? id : P(id).p;
+    if (a != null && await run(() => S.swapWithChild(a))) route();
+    return;
+  }
   if (act === 'trunk-after') {
     const f = b.closest('li').querySelector('.tr-after');
     f.hidden = !f.hidden;
