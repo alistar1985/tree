@@ -1,8 +1,8 @@
 {
   "hosting": {
-    "public": "public",
+    "public": ".",
     "cleanUrls": true,
-    "ignore": ["**/.*"],
+    "ignore": ["firebase.json", "database.rules.json", "README.md", "**/.*", "tools/**", "php-version/**", "**/node_modules/**"],
     "headers": [
       { "source": "**/*.@(js|css|svg)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }] }
     ]

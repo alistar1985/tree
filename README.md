@@ -2,7 +2,7 @@
 
 الموقع كاملاً على Firebase: الاستضافة، قاعدة البيانات، وتسجيل الدخول. لا يحتاج تشغيل أي حاسبة.
 
-- **الموقع:** https://clan-tree-halaf.web.app
+- **الموقع:** https://alistar1985.github.io/tree/ (وأيضاً https://clan-tree-halaf.web.app)
 - **لوحة التحكم:** https://clan-tree-halaf.web.app/admin (للمالك فقط، ولا يظهر رابطها للزوار)
 - **مشروع Firebase:** `clan-tree-halaf` (الاسم الظاهر: Clan tree)
 
@@ -37,13 +37,13 @@
 
 ## الملفات
 ```
-public/               الموقع (يُرفع إلى Firebase Hosting)
-  index.html          الشجرة
-  add.html            أضف نسبك
-  admin.html          لوحة التحكم
-  setup.html          التهيئة الأولى (مرة واحدة)
-  assets/js/store.js  محرك البيانات: الربط الذكي، الطلبات، الرموز، السجل، الذاكرة المؤقتة
-  assets/js/tree.js   محرك رسم الشجرة
+الموقع في جذر المستودع (GitHub Pages و Firebase Hosting)
+index.html          الشجرة
+add.html            أضف نسبك
+admin.html          لوحة التحكم
+setup.html          التهيئة الأولى (مرة واحدة)
+assets/js/store.js  محرك البيانات: الربط الذكي، الطلبات، الرموز، السجل، الذاكرة المؤقتة
+assets/js/tree.js   محرك رسم الشجرة
 tools/build-rules.mjs مولّد قواعد الحماية → database.rules.json
 php-version/          النسخة السابقة (PHP) للمرجع فقط
 ```
