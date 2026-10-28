@@ -30,7 +30,7 @@
     if (!tree) {
       $('#treeCanvas').innerHTML = '';
       tree = new ClanTree('#treeCanvas', {
-        mode: state.mode, colorMode: state.color, colors: CFG.colors, clan: CFG.clan,
+        mode: state.mode, colorMode: state.color, colors: CFG.colors, clan: CFG.clan, avoid: '#legend',
         onSelect: (n) => (n && !n.virtual ? openDrawer(n.id) : closeDrawer()),
         onRender: afterRender,
         onLongPress: (n) => longPress(n),

@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=12';
+import * as S from './store.js?v=13';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -642,7 +642,7 @@ document.addEventListener('submit', async (e) => {
       await run(async () => {
         const [nid] = await S.allocIds(1);
         const u = { ['persons/' + nid]: { n: name, k: App.Names.key(name), path: '/', o: 1, by: { t: 'admin', id: state.admin.uid, l: S.actor().l }, at: TS() } };
-        roots.forEach((r) => { u[`persons/${r.id}/p`] = nid; u[`persons/${r.id}/path`] = '/' + nid + '/'; S.descendants(r.id).forEach((d) => { u[`persons/${d}/path`] = '/' + nid + P(d).path; }); });
+        roots.forEach((r) => { u[`persons/${r.id}/p`] = nid; u[`persons/${r.id}/path`] = '/' + nid + '/'; u[`persons/${r.id}/fl`] = null; S.descendants(r.id).forEach((d) => { u[`persons/${d}/path`] = '/' + nid + P(d).path; }); });
         auditAdmin(u, 'create', 'person', nid, `أضاف «${name}» جداً أعلى فوق «${roots.map((r) => r.n).join('، ')}»`);
         await S.commit(u);
       }, `أصبح «${name}» الجد الأكبر للشجرة`);

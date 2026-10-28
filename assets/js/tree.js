@@ -309,11 +309,27 @@
       const links = [];
       let trunk = null;
 
+      let up = null;
       if (mode === 'organic') {
+        this._shape = this.shape();
+        // الترتيب الأول: شجرة نامية للأعلى، كل فرع فوق أبيه في مساحته الخاصة (بلا تقاطع)،
+        // وكل جيل على مستوى واحد. إن صارت عريضة جداً (آلاف الأسماء) نستعمل التاج المروحي
+        const lim = { tall: 1.9, square: 2.4 }[this._shape] || 3;
+        up = this._layoutUp(h);
+        this._layout = up.w <= Math.max(700, up.h * lim) ? 'up' : 'fan';
+        // على الهاتف: نمد المسافات بين الأجيال حتى تملأ الشجرة طول الشاشة بدل أن تبقى صغيرة في وسطها
+        const cw = this.el.clientWidth || 1, ch = this.el.clientHeight || 1;
+        const want = up.w * (ch / cw) * 0.92 - 150;
+        if (this._layout === 'up' && h.height > 0 && want > up.h) up = this._layoutUp(h, Math.min(150, 46 + (want - up.h) / h.height));
+      }
+      if (mode === 'organic' && this._layout === 'up') {
+        const step = 54;
+        trunk = { len: Math.max(120, up.h * 0.15, trunkNodes.length * step + 80), w: Math.max(24, Math.min(80, 20 + Math.sqrt(crown.desc + 1) * 3)) };
+        trunkNodes.forEach((n, i) => nodes.push({ kind: 'trunk', data: { n }, px: 0, py: (trunkNodes.length - i) * step + 6, depth: -1 }));
+      } else if (mode === 'organic') {
         // تاج مرتب: كل جيل على حلقة، وكل فرع يأخذ زاوية بقدر حجم ذريته (ترتيب متوازن بلا تقاطع)،
         // والتاج كله فوق الجذع (نصف دائرة) مهما كبرت الشجرة
         // على شاشة الهاتف الطولية يصير التاج أضيق وأطول حتى يملأ الشاشة بدل شريط عريض صغير
-        this._shape = this.shape();
         const span = Math.PI * ({ tall: 0.52, square: 0.78 }[this._shape] || 0.96);
         const ex = this._shape === 'tall' ? 0.82 : EX, ey = this._shape === 'tall' ? 1.18 : EY;
         d3.tree().size([span, 1]).separation((a, b) => (a.parent === b.parent ? 1 : 1.6) / Math.max(1, a.depth))(h);
@@ -363,7 +379,7 @@
       // اتجاه الأوراق ومواضع قواعدها
       h.each((d) => {
         if (!d.parent) return;
-        if (isLeaf(d)) {
+        if (isLeaf(d) && !(mode === 'organic' && this._layout === 'up')) {
           let th;
           if (mode === 'organic') th = d.angle;
           else {
@@ -390,7 +406,13 @@
         const w0 = Math.min(mode === 'organic' ? 30 : 22, 1.8 + Math.sqrt(d.data.n.desc + 1) * (mode === 'organic' ? 2.2 : 1.6));
         const w1 = Math.max(1.4, w0 * (d.bud ? 0.35 : 0.55));
         let p1, p2;
-        if (mode === 'organic') {
+        if (mode === 'organic' && this._layout === 'up') {
+          // يخرج الغصن باتجاه طرف الأب ثم ينحني ليدخل الورقة باتجاهها
+          const th0 = isLeaf(p) ? p.theta : -Math.PI / 2;
+          const k = Math.max(18, Math.abs(y1 - y0) * 0.5);
+          p1 = [x0 + Math.cos(th0) * k, y0 + Math.sin(th0) * k];
+          p2 = [x1 - Math.cos(d.theta) * k * 0.8, y1 - Math.sin(d.theta) * k * 0.8];
+        } else if (mode === 'organic') {
           const r0 = isLeaf(p) ? p.r + p.L * 0.92 : p.r;
           const rm = (r0 + d.r) / 2;
           p1 = p.depth === 0 ? [0, -Math.min(70, d.r * 0.4)] : [rm * Math.cos(p.angle) * this._ex, rm * Math.sin(p.angle) * this._ey];
@@ -591,9 +613,44 @@
       this._drawRuler(h);
       if (this.selectedId != null) this._applySelection();
 
+      // دليل الألوان يُرسم أولاً حتى يُحسب مكانه عند توسيط الشجرة
+      if (this.o.onRender) this.o.onRender(this);
       if (!this.o.interactive) this._fitViewBox();
       else if (!opts.keepView && !this._fittedOnce) { this.fit(false); this._fittedOnce = true; }
-      if (this.o.onRender) this.o.onRender(this);
+    }
+
+    /** ترتيب الشجرة النامية للأعلى: يحسب مواضع القواعد والأطراف ويعيد عرض التاج وارتفاعه */
+    _layoutUp(h, GAP = 46) {
+      const MAXT = 0.62;
+      d3.tree().nodeSize([1, 1]).separation((a, b) => {
+        let s = (a.W + b.W) / 2 + 10;
+        if (a.parent !== b.parent) s += 14 + (a.L + b.L) * 0.22; // مسافة أوسع بين العوائل المختلفة
+        return s;
+      })(h);
+      const rows = [];
+      h.each((d) => { (rows[d.depth] = rows[d.depth] || []).push(d); });
+      h.tx = 0; h.ty = -30; h.theta = -Math.PI / 2;
+      h.px = 0; h.py = 0;
+      let base = -(30 + 64);
+      let minX = -60, maxX = 60;
+      for (let k = 1; k < rows.length; k++) {
+        let top = base;
+        rows[k].forEach((d) => {
+          const p = d.parent;
+          const pt = k === 1 ? { x: 0, y: -30 } : { x: p.tx, y: p.ty };
+          // تميل الورقة باتجاه الغصن الواصل إليها، بحد أقصى
+          const tilt = Math.max(-MAXT, Math.min(MAXT, Math.atan2(d.x - pt.x, (pt.y - base) + 40) * 0.85));
+          d.theta = -Math.PI / 2 + tilt;
+          d.px = d.bx = d.x; d.py = d.by = base;
+          d.tx = d.bx + Math.cos(d.theta) * d.L * 0.92;
+          d.ty = d.by + Math.sin(d.theta) * d.L * 0.92;
+          top = Math.min(top, d.by + Math.sin(d.theta) * d.L);
+          minX = Math.min(minX, d.bx - d.W, d.bx + Math.cos(d.theta) * d.L - d.W / 2);
+          maxX = Math.max(maxX, d.bx + d.W, d.bx + Math.cos(d.theta) * d.L + d.W / 2);
+        });
+        base = top - GAP;
+      }
+      return { w: maxX - minX, h: -base };
     }
 
     /** شكل مساحة العرض: طولية (هاتف) أو مربعة أو عريضة */
@@ -698,8 +755,18 @@
       const w = this.el.clientWidth || 800, hgt = this.el.clientHeight || 600;
       const pad = 40;
       const rulerW = this._rulerRows && this._rulerRows.length ? 110 : 0; // مساحة مسطرة الأجيال
-      const k = Math.min(1.4, Math.max(0.03, Math.min((w - pad * 2 - rulerW) / (b.width || 1), (hgt - pad * 2) / (b.height || 1))));
-      const t = d3.zoomIdentity.translate((w - rulerW) / 2 - (b.x + b.width / 2) * k, hgt / 2 - (b.y + b.height / 2) * k).scale(k);
+      const fitIn = (aw, ah) => Math.min(1.4, Math.max(0.03, Math.min((aw - pad * 2) / (b.width || 1), (ah - pad * 2) / (b.height || 1))));
+      let aw = w - rulerW, ah = hgt;
+      // لا نضع الشجرة تحت دليل الألوان: نختار بين المساحة فوقه أو بجانبه، أيهما يعطي حجماً أكبر
+      const av = this.o.avoid && document.querySelector(this.o.avoid);
+      if (av && av.offsetParent && !av.hidden) {
+        const r = av.getBoundingClientRect(), c = this.el.getBoundingClientRect();
+        const above = r.top - c.top, beside = r.left - c.left;
+        if (above > 120 && fitIn(aw, above) >= fitIn(Math.min(aw, beside), ah)) ah = above;
+        else if (beside > 160) aw = Math.min(aw, beside);
+      }
+      const k = fitIn(aw, ah);
+      const t = d3.zoomIdentity.translate(aw / 2 - (b.x + b.width / 2) * k, ah / 2 - (b.y + b.height / 2) * k).scale(k);
       (animate === false ? this.svg : this.svg.transition().duration(550)).call(this.zoom.transform, t);
     }
     centerOn(id, scale) {
