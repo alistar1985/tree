@@ -10,3 +10,10 @@ data/*
 Thumbs.db
 desktop.ini
 .vscode/
+
+# Firebase: مفتاح التهيئة والقواعد المولّدة منه، وملفات الأداة المؤقتة
+tools/setup-key.txt
+database.rules.json
+.firebase/
+firebase-debug*.log
+database-debug.log

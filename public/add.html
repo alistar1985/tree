@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>أضف نسبك</title>
+<meta name="description" content="أضف اسمك ونسبك إلى شجرة العشيرة">
+<meta name="theme-color" content="#2f5d1e">
+<meta name="base" content="">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/assets/css/main.css?v=4">
+<script>try{var t=localStorage.getItem('clan-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
+</head>
+<body class="is-page page-add" data-page="add">
+<header class="site-header">
+  <div class="wrap header-in">
+    <a class="brand" href="/"><span data-logo="42"></span><span class="brand-txt"><b data-bind="site_title">شجرة العشيرة</b><small data-bind="hierarchy"></small></span></a>
+    <div class="header-tools" id="headerTools"></div>
+  </div>
+</header>
+
+<main class="wrap add-simple">
+  <section class="card add-card">
+    <header class="add-head">
+      <span class="add-icon"><svg class="ic"><use href="#i-user-plus"/></svg></span>
+      <div><h1>أضف نسبك</h1><p>اكتب اسمك الكامل وبياناتك، ونربطك بأجدادك في الشجرة تلقائياً.</p></div>
+    </header>
+
+    <form id="addForm" novalidate>
+      <div class="alert alert-ok" id="privAlert" hidden></div>
+      <label class="field">
+        <span>اسمك الكامل (الخماسي أو السداسي)</span>
+        <input class="big-input" id="fullName" placeholder="مثال: علي عبد الحليم جعفر محمد موسى" autocomplete="name" required>
+      </label>
+      <div class="name-chips empty" id="chips" data-empty="سيظهر هنا تسلسل نسبك: أنت، الأب، الجد…"></div>
+      <p class="chip-help"><svg class="ic"><use href="#i-info"/></svg>اكتب اسمك ثم اسم أبيك ثم جدك… حتى أبعد جد تعرفه. اضغط <b>⇆</b> لدمج اسمين مثل «عبد» و«الحليم».</p>
+
+      <div class="grid-2">
+        <label class="field"><span id="phoneLabel">رقم الهاتف</span><input id="phone" inputmode="tel" dir="ltr" placeholder="07xx xxx xxxx"><small>للتحقق فقط، ولا يظهر لأحد.</small></label>
+        <label class="field"><span>سنة الميلاد (اختياري)</span><input id="birthYear" inputmode="numeric" placeholder="1990"></label>
+      </div>
+
+      <div class="field">
+        <span>أبناؤك (اختياري) — من الأكبر إلى الأصغر</span>
+        <div class="sons-list" id="sons"></div>
+        <button class="btn btn-sm btn-ghost" type="button" id="addSon" style="align-self:flex-start"><svg class="ic"><use href="#i-plus"/></svg>إضافة ابن</button>
+      </div>
+
+      <label class="field"><span>ملاحظة (اختياري)</span><textarea id="note" rows="2" placeholder="أي معلومة تساعد في التأكد من النسب، مثل اسم البيت أو المنطقة"></textarea></label>
+      <input type="text" id="hp" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+
+      <div id="choose" hidden></div>
+      <button class="btn btn-primary btn-lg btn-block" type="submit" id="sendBtn"><svg class="ic"><use href="#i-check"/></svg>إرسال</button>
+    </form>
+    <div id="doneBox" hidden></div>
+  </section>
+
+  <section class="card side-card" id="mySubs" hidden>
+    <h3><svg class="ic"><use href="#i-inbox"/></svg>طلباتك السابقة</h3>
+    <div id="mySubsList"></div>
+  </section>
+</main>
+<footer class="site-footer slim"><div class="wrap footer-in"><span>© <span data-bind="site_title">شجرة العشيرة</span></span></div></footer>
+<dialog class="modal" id="codeModal"></dialog>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="/assets/js/icons.js?v=4"></script>
+<script src="/assets/js/app.js?v=4"></script>
+<script src="/assets/js/add.js?v=4"></script>
+<script type="module" src="/assets/js/public.js"></script>
+</body>
+</html>

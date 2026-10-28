@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>تهيئة شجرة العشيرة</title>
+<meta name="base" content="">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/assets/css/main.css?v=4">
+</head>
+<body class="auth-page">
+<main class="auth-wrap wide">
+  <form class="auth-card" id="setupForm" autocomplete="off">
+    <div class="auth-head">
+      <span data-logo="64"></span>
+      <h1>تهيئة شجرة العشيرة</h1>
+      <p>خطوة واحدة لإعداد موقعك على Firebase. يمكن تغيير كل شيء لاحقاً من لوحة التحكم.</p>
+    </div>
+    <div class="alert alert-danger" id="setupErr" hidden></div>
+
+    <fieldset class="fs">
+      <legend><svg class="ic"><use href="#i-key"/></svg>مفتاح التهيئة</legend>
+      <label class="field"><span>مفتاح التهيئة (أُرسل إليك مع الموقع — يمنع غيرك من الاستيلاء على الموقع قبلك)</span><input name="key" dir="ltr" required></label>
+    </fieldset>
+
+    <fieldset class="fs">
+      <legend><svg class="ic"><use href="#i-tree"/></svg>بيانات العشيرة</legend>
+      <div class="grid-2">
+        <label class="field"><span>عنوان الموقع</span><input name="site_title" value="شجرة عشيرة الحلاف" required></label>
+        <label class="field"><span>اسم الجد الأكبر (جذر الشجرة)</span><input name="root" value="بني مخزوم" required></label>
+        <label class="field"><span>القبيلة</span><input name="tribe" value="بني مخزوم"></label>
+        <label class="field"><span>العشيرة</span><input name="clan" value="الحلاف" required></label>
+        <label class="field"><span>الفخذ (اختياري)</span><input name="fakhdh" value=""></label>
+        <label class="field"><span>ألقاب العشيرة (تُستبعد تلقائياً من آخر الاسم)</span><input name="laqab" value="الحلفي، الحلافي"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="demo"><span>إضافة بيانات تجريبية (حوالي 90 اسماً) لاستعراض الشجرة — تُحذف لاحقاً من الإعدادات</span></label>
+    </fieldset>
+
+    <fieldset class="fs">
+      <legend><svg class="ic"><use href="#i-shield"/></svg>حساب المالك</legend>
+      <div class="grid-2">
+        <label class="field"><span>البريد الإلكتروني</span><input type="email" name="email" dir="ltr" required></label>
+        <label class="field"><span>الاسم الظاهر</span><input name="name" placeholder="مثال: أبو علي" required></label>
+        <label class="field"><span>كلمة المرور</span><input type="password" name="password" dir="ltr" minlength="8" required></label>
+        <label class="field"><span>تأكيد كلمة المرور</span><input type="password" name="password2" dir="ltr" minlength="8" required></label>
+      </div>
+    </fieldset>
+
+    <button class="btn btn-primary btn-lg btn-block" type="submit" id="setupBtn"><svg class="ic"><use href="#i-check"/></svg>تهيئة الموقع</button>
+  </form>
+</main>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="/assets/js/icons.js?v=4"></script>
+<script src="/assets/js/app.js?v=4"></script>
+<script type="module" src="/assets/js/setup.js"></script>
+</body>
+</html>
