@@ -689,7 +689,10 @@
       <header class="modal-head"><span class="modal-icon">${icon('edit')}</span><div><h3>تعديل سريع</h3><p>${esc(tree.nasab(n, 5))}</p></div></header>
       <label class="field"><span>الاسم</span><input name="name" value="${esc(n.name)}" required></label>
       <label class="field"><span>إضافة أبناء (اختياري، افصلهم بفاصلة)</span><input name="kids" placeholder="مثال: علي، حسن"></label>
-      ${n.parent && !n.parent.virtual ? `<label class="field"><span>اسم ناقص قبله؟ (بينه وبين أبيه «${esc(n.parent.name)}»)</span><input name="insert" placeholder="اختياري — يُضاف في وسط السلسلة"></label>` : ''}
+      <div class="grid-2">
+        <label class="field"><span>اسم قبله ${n.parent && !n.parent.virtual ? `(بينه وبين «${esc(n.parent.name)}»)` : '(جد أعلى منه)'}</span><input name="before" placeholder="اختياري"></label>
+        ${n.kids && n.kids.length ? `<label class="field"><span>اسم بعده (بينه وبين أبنائه)</span><input name="after" placeholder="اختياري"></label>` : ''}
+      </div>
       ${n.kids && n.kids.length ? `<div class="field"><span>البيت</span><button class="btn btn-sm ${n.house ? 'btn-danger-soft' : 'btn-gold'}" value="${n.house ? 'unhouse' : 'house'}" type="submit" formnovalidate>${icon(n.house ? 'x' : 'crown')}${n.house ? 'إلغاء «' + esc(n.house) + '»' : 'اجعله بيتاً'}</button></div>` : ''}
       <footer class="modal-foot" style="justify-content:space-between;flex-wrap:wrap">
         <span style="display:flex;gap:6px;flex-wrap:wrap">${n.kids && n.kids.length && n.parent && !n.parent.virtual
@@ -706,11 +709,13 @@
         if (act === 'save') {
           const name = Names.clean(f.name.value);
           if (name && name !== n.name) await api('person_update', { id: n.id, name });
-          const ins = f.insert ? Names.clean(f.insert.value) : '';
-          if (ins) await api('person_insert_parent', { id: n.id, name: ins });
+          const before = Names.clean(f.before.value), after = f.after ? Names.clean(f.after.value) : '';
+          if (before) await api('person_add_ancestor', { id: n.id, name: before });
+          if (after) await api('person_insert_child', { id: n.id, name: after });
+          const ins = [before && `«${before}» قبله`, after && `«${after}» بعده`].filter(Boolean).join(' و');
           let added = 0;
           for (const k of f.kids.value.split(/[،,\n]+/).map((x) => Names.clean(x)).filter(Boolean)) { await api('person_add', { parent_id: n.id, name: k }); added++; }
-          toast(ins ? `أُضيف «${ins}» في السلسلة بين «${n.parent.name}» و«${name || n.name}»` : added ? `تم الحفظ وإضافة ${added} من الأبناء` : 'تم الحفظ');
+          toast(ins ? `أُضيف ${ins} في السلسلة` : added ? `تم الحفظ وإضافة ${added} من الأبناء` : 'تم الحفظ');
           await refresh(n.id);
         } else if (act === 'house' || act === 'unhouse') {
           await api('person_update', act === 'house' ? { id: n.id, is_head: 1, no_house: 0 } : { id: n.id, is_head: 0, no_house: 1 });

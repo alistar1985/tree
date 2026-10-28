@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=13';
+import * as S from './store.js?v=14';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -368,7 +368,9 @@ async function personEdit(id) {
           <form style="display:flex;gap:8px" data-form="kids-add" data-id="${id}"><input name="names" placeholder="أسماء الأبناء مفصولة بفاصلة" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form></div>`)}
         ${panel('نقل ودمج', 'move', `<div class="panel-body">${p.p != null ? `<form style="margin-bottom:14px" data-form="move" data-id="${id}"><label class="field"><span>${p.fl ? 'ربطه بأبيه الحقيقي' : 'نقل مع ذريته تحت أب آخر'}</span>${picker('parent', 'ابحث عن الأب الجديد…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('move')}نقل</button></form>` : ''}
           <form data-form="merge" data-id="${id}"><label class="field"><span>دمج هذا الشخص (المكرر) في الشخص الصحيح</span>${picker('target', 'ابحث عن الشخص الصحيح…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('merge')}دمج</button></form></div>`)}
-        ${p.p != null ? panel('اسم ناقص في السلسلة', 'plus', `<div class="panel-body"><form style="display:flex;gap:8px" data-form="insert-parent" data-id="${id}"><input name="name" placeholder="الاسم بين «${esc(P(p.p) ? P(p.p).n : '')}» و«${esc(p.n)}»" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form></div>`) : ''}
+        ${panel('إضافة اسم في السلسلة', 'plus', `<div class="panel-body" style="display:grid;gap:10px">
+          <form style="display:flex;gap:8px" data-form="insert-parent" data-id="${id}"><input name="name" placeholder="${p.p != null && P(p.p) ? `اسم قبله (بين «${esc(P(p.p).n)}» و«${esc(p.n)}»)` : `اسم قبله (جد أعلى من «${esc(p.n)}»)`}" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}قبله</button></form>
+          ${kids.length ? `<form style="display:flex;gap:8px" data-form="insert-child" data-id="${id}"><input name="name" placeholder="اسم بعده (بين «${esc(p.n)}» وأبنائه)" required><button class="btn btn-sm btn-outline" type="submit">${icon('plus')}بعده</button></form>` : ''}</div>`)}
         ${kids.length && p.p != null ? panel('حذفه وإبقاء أبنائه', 'link', `<div class="panel-body"><p class="muted" style="margin:0 0 10px">إن كان الاسم خطأً: يُحذف «${esc(p.n)}» وحده ويرتبط أبناؤه (${kids.map((c) => esc(P(c).n)).join('، ')}) بـ «${esc(P(p.p) ? P(p.p).n : '')}» مباشرة.</p><button class="btn btn-sm btn-danger-soft" data-act="unlink" data-id="${id}">${icon('trash')}حذف وربط الأبناء</button></div>`) : ''}
         ${panel('حذف', 'trash', `<div class="panel-body"><form class="danger-zone" data-form="delete" data-id="${id}" data-desc="${desc.length}">${desc.length ? `<label class="check"><input type="checkbox" name="with_desc" required><span>أفهم أن الحذف يشمل ${desc.length} من ذريته</span></label>` : ''}<button class="btn btn-sm btn-danger" type="submit">${icon('trash')}حذف «${esc(p.n)}»</button></form></div>`)}
       </div></div>
@@ -672,8 +674,13 @@ document.addEventListener('submit', async (e) => {
       return;
     }
     if (kind === 'insert-parent') {
-      const nid = await run(() => S.insertParent(id, val('name')), 'أُضيف الاسم في السلسلة');
-      if (nid) go('people/' + id);
+      const nid = await run(() => S.addAncestor(id, val('name')), 'أُضيف الاسم في السلسلة');
+      if (nid) route();
+      return;
+    }
+    if (kind === 'insert-child') {
+      const nid = await run(() => S.insertChild(id, val('name')), 'أُضيف الاسم في السلسلة');
+      if (nid) route();
       return;
     }
     if (kind === 'delete') {

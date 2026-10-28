@@ -277,7 +277,7 @@
 
       // سلسلة الجذع: أجداد بابن واحد قبل أول تفرع
       const chain = [root];
-      while (chain.length < 9) {
+      while (chain.length < 16) {
         const last = chain[chain.length - 1];
         const ks = this._visKids(last, chain.length);
         if (ks.length === 1 && this._visKids(ks[0], chain.length + 1).length > 0) chain.push(ks[0]);
@@ -323,9 +323,9 @@
         if (this._layout === 'up' && h.height > 0 && want > up.h) up = this._layoutUp(h, Math.min(150, 46 + (want - up.h) / h.height));
       }
       if (mode === 'organic' && this._layout === 'up') {
-        const step = 54;
-        trunk = { len: Math.max(120, up.h * 0.15, trunkNodes.length * step + 80), w: Math.max(24, Math.min(80, 20 + Math.sqrt(crown.desc + 1) * 3)) };
-        trunkNodes.forEach((n, i) => nodes.push({ kind: 'trunk', data: { n }, px: 0, py: (trunkNodes.length - i) * step + 6, depth: -1 }));
+        const step = 38;
+        trunk = { len: Math.max(120, up.h * 0.15, trunkNodes.length * step + 90), w: Math.max(24, Math.min(80, 20 + Math.sqrt(crown.desc + 1) * 3)) };
+        trunkNodes.forEach((n, i) => nodes.push({ kind: 'trunk', data: { n }, px: 0, py: (trunkNodes.length - i) * step + 16, depth: -1 }));
       } else if (mode === 'organic') {
         // تاج مرتب: كل جيل على حلقة، وكل فرع يأخذ زاوية بقدر حجم ذريته (ترتيب متوازن بلا تقاطع)،
         // والتاج كله فوق الجذع (نصف دائرة) مهما كبرت الشجرة
@@ -357,10 +357,10 @@
           d.px = d.r * Math.cos(a) * ex;
           d.py = d.r * Math.sin(a) * ey;
         });
-        const step = 54;
-        const tLen = Math.max(130, rOut * 0.34, trunkNodes.length * step + 80);
+        const step = 38;
+        const tLen = Math.max(130, rOut * 0.34, trunkNodes.length * step + 90);
         trunk = { len: tLen, w: Math.max(26, Math.min(96, rOut * 0.075, 22 + Math.sqrt(crown.desc + 1) * 3)) };
-        trunkNodes.forEach((n, i) => nodes.push({ kind: 'trunk', data: { n }, px: 0, py: (trunkNodes.length - i) * step + 6, depth: -1 }));
+        trunkNodes.forEach((n, i) => nodes.push({ kind: 'trunk', data: { n }, px: 0, py: (trunkNodes.length - i) * step + 16, depth: -1 }));
       } else {
         const NW = 56, LH = 116;
         d3.tree().nodeSize([NW, LH]).separation((a, b) => {
@@ -374,6 +374,16 @@
         trunkNodes.forEach((n, i) => nodes.push({ kind: 'trunk', data: { n }, px: 0, py: -(trunkNodes.length - i) * step - 10, depth: -1 }));
         trunk = trunkNodes.length ? { top: -(trunkNodes.length) * step - 10, w: Math.min(40, 12 + Math.sqrt(crown.desc + 1) * 1.4) } : null;
         this._levelH = LH;
+      }
+
+      // ألواح الأجداد على الجذع مثل اللوحة: الجذع يتسع لها، وتعرض كل لوحة بعرض الجذع عند موضعها
+      if (mode === 'organic' && trunk && trunkNodes.length) {
+        trunk.w = Math.max(trunk.w, 78);
+        nodes.forEach((d) => {
+          if (d.kind !== 'trunk') return;
+          const t = Math.max(0, (d.py / trunk.len - 0.4) / 0.6);
+          d.pw = Math.max(84, trunk.w * (1 + 2.1 * t * t) - 12);
+        });
       }
 
       // اتجاه الأوراق ومواضع قواعدها
@@ -474,16 +484,18 @@
 
         if (kind === 'trunk') {
           const lines = [n.name];
-          const fs = fitFont(lines, 84, 22, 13);
-          el(g, 'rect', { class: 'shape', x: -46, y: -14, width: 92, height: 28, rx: 14, fill, stroke: pendStroke, 'stroke-width': sw, 'stroke-dasharray': dash });
-          addText(g, lines, fs, ink);
+          const pw = d.pw || 92;
+          const fs = fitFont(lines, pw - 16, 24, 15);
+          el(g, 'rect', { class: 'shape', x: -pw / 2, y: -15, width: pw, height: 30, rx: 15, fill, stroke: pendStroke, 'stroke-width': sw, 'stroke-dasharray': dash });
+          addText(g, lines, fs, ink, { 'font-weight': 700 });
         } else if (kind === 'crown') {
-          const lines = textLines(n.name);
-          const fs = fitFont(lines, 84, 40, 16);
-          el(g, 'ellipse', { cx: 0, cy: 0, rx: 54, ry: 31, fill: 'none', stroke: '#d9ae22', 'stroke-width': 1.4, 'stroke-dasharray': '2 3' });
-          el(g, 'ellipse', { class: 'shape', cx: 0, cy: 0, rx: 48, ry: 26, fill, stroke: darker(fill, 0.35), 'stroke-width': 2, 'stroke-dasharray': dash });
-          addText(g, lines, fs, ink, { 'font-family': FONT_DISPLAY, 'font-weight': 700 });
-          if (n.house) el(g, 'path', { d: CROWN, transform: 'translate(0,-36) scale(1.4)', fill: '#d9ae22', stroke: '#8f6b0c', 'stroke-width': 0.6 });
+          // الجد الجامع: بيضوي كبير واسمه بخط واضح عريض كما في اللوحة
+          const lines = n.name.length > 9 ? textLines(n.name) : [n.name];
+          const fs = fitFont(lines, 92, 42, 21);
+          el(g, 'ellipse', { cx: 0, cy: 0, rx: 60, ry: 35, fill: 'none', stroke: '#d9ae22', 'stroke-width': 1.4, 'stroke-dasharray': '2 3' });
+          el(g, 'ellipse', { class: 'shape', cx: 0, cy: 0, rx: 54, ry: 30, fill, stroke: darker(fill, 0.35), 'stroke-width': 2, 'stroke-dasharray': dash });
+          addText(g, lines, fs, ink, { 'font-weight': 800 });
+          if (n.house) el(g, 'path', { d: CROWN, transform: 'translate(0,-42) scale(1.4)', fill: '#d9ae22', stroke: '#8f6b0c', 'stroke-width': 0.6 });
         } else if (kind === 'leaf') {
           if (d.bud) hasLeaf = true;
           else if (this.o.colorMode === 'generation') legendGen.add(d.depth);

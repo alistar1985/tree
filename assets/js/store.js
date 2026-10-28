@@ -11,7 +11,7 @@ import {
 import {
   getDatabase, ref, get, update, push, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast, equalTo,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js?v=13';
+import { firebaseConfig } from './firebase-config.js?v=14';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -660,6 +660,48 @@ export async function insertParent(id, name) {
   return nid;
 }
 
+/** إضافة اسم قبل الشخص (أبوه): إن كان أعلى جد صار الاسم الجديد جداً أعلى، وإلا أُضيف بينه وبين أبيه */
+export async function addAncestor(id, name) {
+  await loadPersons();
+  const p = P(id);
+  if (!p) throw err('الشخص غير موجود');
+  if (p.p != null && P(p.p)) return insertParent(id, name);
+  name = Names.clean(name || '');
+  const e = nameError(name);
+  if (e) throw err(e);
+  if (state.viewer.type !== 'admin' && !can('move', id)) throw err('لا تملك صلاحية الإضافة هنا');
+  const [nid] = await allocIds(1);
+  const a = actor();
+  const u = {};
+  u['persons/' + nid] = newRecord(nid, null, { name }, a, 1, null);
+  movePaths(u, id, nid, '/');
+  u[`persons/${id}/fl`] = null;
+  auditEntry(u, a, 'create', 'person', nid, `أضاف «${name}» جداً أعلى فوق «${p.n}»`);
+  await commit(u);
+  return nid;
+}
+
+/** إضافة اسم بعد الشخص: يصير ابنه، وينتقل أبناؤه الحاليون تحت الاسم الجديد فتكتمل السلسلة */
+export async function insertChild(id, name) {
+  await loadPersons();
+  const p = P(id);
+  if (!p) throw err('الشخص غير موجود');
+  if (p.g === 'f') throw err('الشجرة أبوية: لا يُضاف أبناء تحت الإناث');
+  name = Names.clean(name || '');
+  const e = nameError(name);
+  if (e) throw err(e);
+  if (!can('add', id)) throw err('لا تملك صلاحية الإضافة هنا');
+  const kids = kidsOf(id);
+  const [nid] = await allocIds(1);
+  const a = actor();
+  const u = {};
+  u['persons/' + nid] = newRecord(nid, id, { name }, a, 1, p.path);
+  kids.forEach((k) => movePaths(u, k, nid, p.path + id + '/'));
+  auditEntry(u, a, 'create', 'person', nid, kids.length ? `أضاف «${name}» في السلسلة بين «${p.n}» وأبنائه (${kids.map((k) => P(k).n).join('، ')})` : `أضاف «${name}» ابناً لـ «${p.n}»`);
+  await commit(u);
+  return nid;
+}
+
 export async function restoreBatch(tk) {
   await loadPersons();
   const t = (await get(ref(db, 'trash/' + tk))).val();
@@ -1261,6 +1303,8 @@ const handlers = {
   async person_merge(d) { await mergePersons(+d.id, +d.target_id); return { ok: true }; },
   async person_delete(d) { return { ok: true, count: await deletePerson(+d.id, !!+d.with_desc) }; },
   async person_unlink(d) { await removeKeepKids(+d.id); return { ok: true }; },
+  async person_add_ancestor(d) { return { ok: true, id: await addAncestor(+d.id, d.name) }; },
+  async person_insert_child(d) { return { ok: true, id: await insertChild(+d.id, d.name) }; },
   async person_insert_parent(d) { return { ok: true, id: await insertParent(+d.id, d.name) }; },
   async person_reorder(d) { await reorderPerson(+d.id, d.dir); return { ok: true }; },
   async submission_approve(d) { return approveSubmission(d.submission_id); },
