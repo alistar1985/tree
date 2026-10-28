@@ -288,7 +288,8 @@ export function watchRev(onChange, every = 60000) {
 }
 function buildMap(raw) {
   const map = new Map();
-  Object.keys(raw).forEach((k) => { const r = raw[k]; map.set(+k, { id: +k, ...r, p: r.p == null ? null : +r.p }); });
+  // Firebase يعيد الأرقام المتتالية كمصفوفة أولها فارغ، فنتجاهل الخانات الفارغة
+  Object.keys(raw).forEach((k) => { const r = raw[k]; if (r) map.set(+k, { id: +k, ...r, p: r.p == null ? null : +r.p }); });
   const kids = new Map();
   map.forEach((p) => { if (p.p != null && map.has(p.p)) { if (!kids.has(p.p)) kids.set(p.p, []); kids.get(p.p).push(p.id); } });
   kids.forEach((list) => list.sort((a, b) => (map.get(a).o || 0) - (map.get(b).o || 0) || a - b));
@@ -555,11 +556,11 @@ export async function restoreBatch(tk) {
   if (top.p != null && kidsOf(top.p).some((x) => P(x).k === top.k)) throw err('لا يمكن الاستعادة: يوجد شخص بالاسم نفسه في الموقع ذاته');
   const a = actor();
   const u = {};
-  Object.entries(t.persons).forEach(([k, v]) => { u['persons/' + k] = v; });
+  Object.entries(t.persons).forEach(([k, v]) => { if (v) u['persons/' + k] = v; }); // تجاهل الخانات الفارغة حتى لا يُحذف أحد
   u['trash/' + tk] = null;
-  auditEntry(u, a, 'restore', 'person', t.root, `استعاد «${top.n}»` + (Object.keys(t.persons).length > 1 ? ' مع ' + (Object.keys(t.persons).length - 1) + ' من ذريته' : ''));
+  auditEntry(u, a, 'restore', 'person', t.root, `استعاد «${top.n}»` + (Object.values(t.persons).filter(Boolean).length > 1 ? ' مع ' + (Object.values(t.persons).filter(Boolean).length - 1) + ' من ذريته' : ''));
   await commit(u);
-  return Object.keys(t.persons).length;
+  return Object.values(t.persons).filter(Boolean).length;
 }
 
 export async function reorderPerson(id, dir) {
