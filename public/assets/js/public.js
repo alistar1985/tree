@@ -12,7 +12,7 @@ const s = state.settings;
 const v = state.viewer;
 
 if (!state.installed) {
-  location.replace('/setup');
+  location.replace('setup');
 } else {
   document.querySelectorAll('[data-bind="site_title"]').forEach((el) => { el.textContent = s.site_title; });
   document.querySelectorAll('[data-bind="hierarchy"]').forEach((el) => { el.textContent = (s.hierarchy || []).filter((l) => l.value).map((l) => l.value).join(' · '); });
@@ -22,10 +22,10 @@ if (!state.installed) {
   const tools = document.getElementById('headerTools');
   if (tools) {
     const cta = page === 'add'
-      ? `<a class="btn btn-outline btn-sm header-cta" href="/">${icon('tree')}الشجرة</a>`
-      : `<a class="btn btn-gold btn-sm header-cta" href="/add">${icon('user-plus')}أضف نسبك</a>`;
+      ? `<a class="btn btn-outline btn-sm header-cta" href="./">${icon('tree')}الشجرة</a>`
+      : `<a class="btn btn-gold btn-sm header-cta" href="add">${icon('user-plus')}أضف نسبك</a>`;
     const who = v.type === 'admin'
-      ? `<a class="chip chip-admin" href="/admin" title="لوحة التحكم">${icon('dashboard')}<span>لوحة التحكم</span></a>`
+      ? `<a class="chip chip-admin" href="admin" title="لوحة التحكم">${icon('dashboard')}<span>لوحة التحكم</span></a>`
       : v.type === 'code'
         ? `<button class="chip chip-code" type="button" data-open="codeModal" title="أنت تعمل برمز صلاحية">${icon('key')}<span>${esc(v.holder)}</span></button>`
         : `<button class="icon-btn" type="button" data-open="codeModal" title="دخول برمز الصلاحية">${icon('key')}</button>`;
@@ -45,7 +45,7 @@ if (!state.installed) {
         <div class="code-status"><div class="code-badge">${icon('shield')}</div><div><b>أنت تعمل برمز: ${esc(c.holder)}</b>
         <span>النطاق: ${c.scope != null && c.scope !== '' ? 'بيت/فرع محدد' : 'الشجرة كاملة'}</span><span class="perm-list">${perms}</span></div></div>
         <footer class="modal-foot">
-          ${c.approve ? `<a class="btn btn-ghost" href="/?pending=1">${icon('inbox')}الطلبات</a>` : ''}
+          ${c.approve ? `<a class="btn btn-ghost" href="./?pending=1">${icon('inbox')}الطلبات</a>` : ''}
           <button class="btn btn-danger-soft" type="button" data-code-logout>${icon('logout')}إنهاء الجلسة</button>
         </footer></form>`;
     } else {
@@ -64,7 +64,7 @@ if (!state.installed) {
       <button class="icon-btn" type="button" data-open="codeModal" title="دخول برمز">${icon('key')}</button></div></div>`);
     document.body.classList.add('in-maint');
   } else if (s.maintenance) {
-    document.body.insertAdjacentHTML('afterbegin', `<div class="maint-bar">${icon('alert')} الموقع في وضع الصيانة — الزوار يرون صفحة الصيانة، وأنت ترى الموقع كالمعتاد. <a href="/admin#settings/maintenance">إيقاف الصيانة</a></div>`);
+    document.body.insertAdjacentHTML('afterbegin', `<div class="maint-bar">${icon('alert')} الموقع في وضع الصيانة — الزوار يرون صفحة الصيانة، وأنت ترى الموقع كالمعتاد. <a href="admin#settings/maintenance">إيقاف الصيانة</a></div>`);
   }
 
   // صفحة الإضافة: حالات الإغلاق والصلاحيات

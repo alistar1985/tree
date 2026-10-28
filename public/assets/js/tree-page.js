@@ -635,10 +635,12 @@
     if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); sInput.focus(); }
   });
   window.addEventListener('clan-theme', () => tree && tree.render({ keepView: true }));
-  window.addEventListener('clan-data', () => { if (tree) load(true).then(() => toast('تم تحديث الشجرة بإضافات جديدة')).catch(() => {}); });
+  let dataDirty = false; // وصل تحديث قبل اكتمال الرسم الأول
+  window.addEventListener('clan-data', () => { if (tree) load(true).catch(() => {}); else dataDirty = true; });
   window.addEventListener('resize', App.debounce(() => tree && tree._updateRuler(), 100));
 
   load(false).then(() => {
+    if (dataDirty) load(true).catch(() => {});
     const focus = params.get('focus') ? +params.get('focus') : null;
     if (focus && tree.get(focus)) setTimeout(() => focusPerson(focus, 1.1), 80);
     else if (params.get('pending') && viewer.perms && viewer.perms.approve) openPending();

@@ -105,7 +105,7 @@
     parseInputKeepPick();
     const n = names();
     if (n.length < 2) return toast('اكتب اسمك واسم أبيك على الأقل، ويُفضّل الاسم الخماسي', 'err');
-    const phone = $('#phone').value.trim();
+    const phone = '';
     if (CFG.requirePhone && phone.replace(/\D/g, '').length < 8) return toast('رقم الهاتف مطلوب للتحقق', 'err');
     const sons = $$('#sons .son').map((x) => Names.clean(x.value)).filter(Boolean);
     const btn = $('#sendBtn');

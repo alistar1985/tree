@@ -9,7 +9,7 @@ const form = document.getElementById('setupForm');
 const errBox = document.getElementById('setupErr');
 const showErr = (m) => { errBox.textContent = m; errBox.hidden = false; window.scrollTo(0, 0); };
 
-if ((await get(ref(db, 'meta/installed'))).exists()) location.replace('/admin');
+if ((await get(ref(db, 'meta/installed'))).exists()) location.replace('admin');
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -50,7 +50,7 @@ form.addEventListener('submit', async (e) => {
     auditEntry(u, a, 'install', 'settings', null, 'تهيئة الموقع على Firebase');
     await update(ref(db), u);
     if (f.demo) await seedDemo(a);
-    location.replace('/admin');
+    location.replace('admin');
   } catch (x) {
     console.error(x);
     showErr(x.message || 'تعذرت التهيئة');

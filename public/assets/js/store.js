@@ -220,18 +220,32 @@ let readyPromise = null;
 export function ready() {
   if (!readyPromise) {
     readyPromise = (async () => {
-      const meta = (await restGet('meta').catch(() => null)) || {};
-      state.installed = !!meta.installed;
-      state.rev = meta.rev || 0;
-      // الإعدادات من ذاكرة المتصفح ما لم تتغير نسختها
-      const cs = cacheGet('settings');
-      let s;
-      if (cs && meta.srev && cs.rev === meta.srev) s = cs.data;
-      else { s = (await restGet('settings').catch(() => null)) || {}; cacheSet('settings', { rev: meta.srev || 0, data: s }); }
-      state.settings = { ...DEFAULTS, ...s };
-      await new Promise((resolve) => {
+      // كل الطلبات تبدأ معاً (لا انتظار متسلسل)، والعرض يبدأ من ذاكرة المتصفح فوراً للزائر العائد
+      const metaP = restGet('meta').catch(() => null);
+      const authP = new Promise((resolve) => {
         const off = onAuthStateChanged(auth, async (u) => { off(); await resolveViewer(u); resolve(); });
       });
+      const cm = cacheGet('meta'), cs = cacheGet('settings');
+      let meta;
+      if (cm && cm.installed && cs) {
+        meta = cm;
+        // تحقق في الخلفية: إن تغيرت البيانات تُحدَّث الشجرة والإعدادات دون إعادة تحميل
+        metaP.then((m) => {
+          if (!m) return;
+          cacheSet('meta', m);
+          if (m.srev !== cm.srev) restGet('settings').then((x) => cacheSet('settings', { rev: m.srev || 0, data: x || {} })).catch(() => {});
+          if (m.rev !== state.rev) { state.rev = m.rev || 0; state.persons = null; window.dispatchEvent(new Event('clan-data')); }
+        });
+      } else {
+        const [m, sv] = await Promise.all([metaP, restGet('settings').catch(() => null)]);
+        meta = m || {};
+        cacheSet('meta', meta);
+        cacheSet('settings', { rev: meta.srev || 0, data: sv || {} });
+      }
+      state.installed = !!meta.installed;
+      state.rev = meta.rev || 0;
+      state.settings = { ...DEFAULTS, ...((cacheGet('settings') || {}).data || {}) };
+      await authP;
       Object.assign(window.CLAN_CFG, clientConfig());
       return state;
     })();
@@ -790,7 +804,6 @@ export async function submitLineage(input) {
   const sons = cleanNames(input.sons, 25, 'الأبناء');
   const phone = latin(input.phone).replace(/[^\d+]/g, '').slice(0, 20);
   const v = state.viewer;
-  if (state.settings.require_phone && v.type === 'public' && phone.length < 8) throw err('رقم الهاتف مطلوب للتحقق');
   let anchor = input.anchor_id != null && input.anchor_id !== '' ? +input.anchor_id : null;
   let idx = +input.anchor_index || 0, floating = false;
   const root = rootId();
@@ -1055,7 +1068,7 @@ async function personDetails(id) {
 
 const handlers = {
   async tree(d) {
-    await syncPersons();
+    if (!state.persons) await loadPersons(false);
     const showF = state.settings.show_females || state.viewer.type === 'admin';
     const persons = [];
     state.map.forEach((p) => { if (p.g !== 'f' || showF) persons.push(compact(p)); });

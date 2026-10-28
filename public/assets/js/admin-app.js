@@ -19,7 +19,7 @@ const ROLES = { owner: 'المالك', admin: 'مشرف عام', editor: 'محر
 const PALETTE = ['#c0392b', '#2e86c1', '#d68910', '#8e44ad', '#16a085', '#a04000', '#1f618d', '#b7950b'];
 
 await S.ready();
-if (!state.installed) location.replace('/setup');
+if (!state.installed) location.replace('setup');
 else if (!state.admin) renderLogin();
 else start();
 
@@ -31,7 +31,7 @@ function renderLogin() {
     <label class="field"><span>البريد الإلكتروني</span><input type="email" name="email" dir="ltr" required autofocus></label>
     <label class="field"><span>كلمة المرور</span><input type="password" name="password" dir="ltr" required></label>
     <button class="btn btn-primary btn-lg btn-block" type="submit">${icon('lock')}دخول</button>
-    <p class="hint" style="justify-content:center;margin-top:16px"><a href="/">${icon('arrow-r')} العودة إلى الموقع</a></p></form></main></div>`;
+    <p class="hint" style="justify-content:center;margin-top:16px"><a href="./">${icon('arrow-r')} العودة إلى الموقع</a></p></form></main></div>`;
   fillLogos();
   $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -80,7 +80,7 @@ function start() {
       <header class="a-top">
         <button class="icon-btn a-menu-btn" type="button" id="menuBtn" title="القائمة">${icon('menu')}</button>
         <h1 id="pageTitle">${icon('dashboard')}</h1><span class="grow"></span>
-        <a class="btn btn-sm btn-outline" href="/" target="_blank">${icon('external')}الموقع</a>
+        <a class="btn btn-sm btn-outline" href="./" target="_blank">${icon('external')}الموقع</a>
       </header>
       <main class="a-content" id="view"></main>
     </div></div>`;
@@ -106,7 +106,7 @@ function drawNav() {
     if (k === 'admins' && !isOwner()) label = 'حسابي';
     const c = counts[k];
     return `<a href="#${k}" class="${cur === k ? 'on' : ''}">${icon(ic)}<span>${label}</span>${c ? `<span class="count">${c}</span>` : ''}</a>`;
-  }).join('') + `<div class="grp">الموقع</div><a href="/" target="_blank">${icon('tree')}<span>الشجرة (تحرير مباشر)</span></a>`;
+  }).join('') + `<div class="grp">الموقع</div><a href="./" target="_blank">${icon('tree')}<span>الشجرة (تحرير مباشر)</span></a>`;
 }
 function setTitle(t, ic) { $('#pageTitle').innerHTML = icon(ic) + esc(t); document.title = t + ' — لوحة التحكم'; }
 const view = () => $('#view');
@@ -217,7 +217,7 @@ PAGES.dashboard = async () => {
   const tone = (a) => (ACTIONS[a] || ['', 'muted'])[1];
   view().innerHTML = `
     <section class="welcome"><div><h2>أهلاً ${esc(state.admin.name || '')}</h2><p>${esc(state.settings.clan_name)} · ${S.fmtDt(Date.now(), false)} · ${online} متصل الآن</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-gold" href="#review">${icon('inbox')}مراجعة الطلبات${subs.length ? ' (' + subs.length + ')' : ''}</a><a class="btn btn-outline" href="/" target="_blank">${icon('tree')}تحرير الشجرة</a></div></section>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-gold" href="#review">${icon('inbox')}مراجعة الطلبات${subs.length ? ' (' + subs.length + ')' : ''}</a><a class="btn btn-outline" href="./" target="_blank">${icon('tree')}تحرير الشجرة</a></div></section>
     ${state.settings.maintenance ? `<div class="alert alert-warn">${icon('alert')}<span>الموقع في وضع الصيانة الآن — الزوار يرون صفحة الصيانة. <a href="#settings/maintenance">إيقاف الصيانة</a></span></div>` : ''}
     <section class="kpis">
       <a class="kpi" href="#people"><span class="k-ic">${icon('users')}</span><span>أفراد الشجرة</span><b>${map.size}</b><small class="${addedWeek ? 'up' : ''}">+${addedWeek} هذا الأسبوع</small></a>
@@ -260,7 +260,7 @@ PAGES.review = async (tab = 'subs') => {
           <span class="badge ${fl ? 'badge-warn' : 'badge-info'}">${fl ? icon('branch') + 'فرع جديد لم يُربط بأجداده' : icon('link') + 'مربوط تلقائياً'}</span></div>
         ${fl ? `<div style="font-size:.92rem">لم يُعثر على أجداده، فسيُضاف فرعاً معلقاً مؤقتاً بالجذر ويرتبط تلقائياً عندما يضيف أقاربه أنسابهم. وعند الاعتماد يُعاد البحث فيما اعتُمد قبله لمنع التكرار.</div>
           <div class="sub-actions">${sugs.map((c) => `<button class="btn btn-xs btn-outline" data-act="approve-at" data-anchor="${c.anchor_id}" data-idx="${c.anchor_index}">${icon('link')}تحت ${esc(S.nasab(c.anchor_id, 4))} (${c.confidence}%)</button>`).join('')}</div>`
-          : `<div style="font-size:.92rem">نقطة الربط: <a href="/?focus=${s.anchor}" target="_blank"><b>${esc(anchorTxt)}</b></a>${newNames.length ? ' — يُضاف تحته: ' + newNames.map((n) => `<span class="badge badge-gold">${icon('plus')}${esc(n)}</span>`).join(' ') : ''}</div>`}
+          : `<div style="font-size:.92rem">نقطة الربط: <a href="./?focus=${s.anchor}" target="_blank"><b>${esc(anchorTxt)}</b></a>${newNames.length ? ' — يُضاف تحته: ' + newNames.map((n) => `<span class="badge badge-gold">${icon('plus')}${esc(n)}</span>`).join(' ') : ''}</div>`}
         ${s.above && s.above.length ? `<div class="sub-warn" style="color:var(--info)">${icon('link')}يُكمل أجداد فرع غير مربوط: ${esc(s.above.join(' ‹ '))}</div>` : ''}
         ${s.sons && s.sons.length ? `<div style="font-size:.88rem">الأبناء: ${esc(s.sons.join('، '))}</div>` : ''}
         ${s.note ? `<div class="alert alert-info" style="margin:0">${icon('info')}${esc(s.note)}</div>` : ''}
@@ -321,7 +321,7 @@ PAGES.people = async (arg, sub) => {
       ${slice.map((id) => { const p = P(id), h = S.houseOf(id); return `<tr><td class="nm"><b>${p.head ? icon('crown') + ' ' : ''}${esc(p.n)}${p.fl ? ' <span class="badge badge-info">غير مربوط</span>' : ''}</b><small>${esc(S.nasab(id, 6))}</small></td>
         <td class="num">${S.depthOf(id)}</td><td>${h != null ? `<span class="swatch" style="background:${esc(P(h).hc || '#d9ae22')}"></span> ${esc(S.houseName(h))}` : '—'}</td><td class="num">${S.kidsOf(id).length}</td>
         <td><small>${esc(p.by ? p.by.l : '')}</small></td><td class="num"><small>${S.fmtDt(p.at, false)}</small></td>
-        <td><div class="acts"><a class="btn btn-xs btn-outline" href="#people/${id}">${icon('edit')}تعديل</a><a class="btn btn-xs btn-ghost" href="/?focus=${id}" target="_blank">${icon('tree')}</a></div></td></tr>`; }).join('') || `<tr><td colspan="7">${empty('search', 'لا توجد نتائج')}</td></tr>`}
+        <td><div class="acts"><a class="btn btn-xs btn-outline" href="#people/${id}">${icon('edit')}تعديل</a><a class="btn btn-xs btn-ghost" href="./?focus=${id}" target="_blank">${icon('tree')}</a></div></td></tr>`; }).join('') || `<tr><td colspan="7">${empty('search', 'لا توجد نتائج')}</td></tr>`}
       </tbody></table></div>${pager(rows.length, page, per, (i) => '#people/p' + i)}</section>`;
   bindPickers(view());
 };
@@ -336,7 +336,7 @@ async function personEdit(id) {
   view().innerHTML = `<div class="panel"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <div class="nasab-chain">${S.lineage(id).map((x, i) => `${i ? '<i>‹</i>' : ''}<a class="badge ${i ? '' : 'badge-ok'}" href="#people/${x}">${esc(P(x).n)}</a>`).join('')}</div>
       <span class="badge badge-muted">الجيل ${S.genOrdinal(S.depthOf(id))}</span><span class="badge badge-muted">${kids.length} أبناء · ${desc.length} ذرية</span>
-      ${p.fl ? '<span class="badge badge-info">فرع لم يُربط بأجداده بعد</span>' : ''}<a class="btn btn-xs btn-outline" href="/?focus=${id}" target="_blank">${icon('tree')}في الشجرة</a></div></div>
+      ${p.fl ? '<span class="badge badge-info">فرع لم يُربط بأجداده بعد</span>' : ''}<a class="btn btn-xs btn-outline" href="./?focus=${id}" target="_blank">${icon('tree')}في الشجرة</a></div></div>
     <div class="grid-panels c2">
       <form class="panel" data-form="person-save" data-id="${id}"><div class="panel-head"><h2>${icon('user')}البيانات</h2></div><div class="panel-body form-grid">
         <label class="field"><span>الاسم</span><input name="name" value="${esc(p.n)}" required></label>
@@ -392,14 +392,14 @@ PAGES.houses = async (edit) => {
     + (floating.length ? panel(`فروع بانتظار الربط (${floating.length})`, 'link', `<div class="table-wrap"><table class="t"><thead><tr><th>رأس الفرع</th><th>الأفراد</th><th>ربطه بأبيه</th><th></th></tr></thead><tbody>
       ${floating.map((f) => `<tr><td class="nm"><b>${esc(f.n)}</b><small>معلق مؤقتاً بـ «${esc(P(f.p) ? P(f.p).n : '')}»</small></td><td class="num">${S.descendants(f.id).length + 1}</td>
         <td style="min-width:280px"><form style="display:flex;gap:6px;align-items:flex-start" data-form="link" data-id="${f.id}"><div style="flex:1">${picker('parent', 'ابحث عن أبيه في الشجرة…')}</div><button class="btn btn-xs btn-primary" type="submit" style="margin-top:6px">${icon('link')}ربط</button></form></td>
-        <td><div class="acts"><a class="btn btn-xs btn-ghost" href="/?focus=${f.id}" target="_blank">${icon('tree')}</a><button class="btn btn-xs btn-outline" data-act="confirm-link" data-id="${f.id}" data-parent="${f.p}">${icon('check')}ابن مباشر لـ${esc(P(f.p) ? P(f.p).n : '')}</button></div></td></tr>`).join('')}</tbody></table></div>`, '', 'عائلات لم يُعثر على أجدادها بعد، فهي معلقة بالجذر بخط منقط. ترتبط تلقائياً عندما يضيف أحد أقاربها نسباً يجمعها، أو اربطها هنا.') : '')
+        <td><div class="acts"><a class="btn btn-xs btn-ghost" href="./?focus=${f.id}" target="_blank">${icon('tree')}</a><button class="btn btn-xs btn-outline" data-act="confirm-link" data-id="${f.id}" data-parent="${f.p}">${icon('check')}ابن مباشر لـ${esc(P(f.p) ? P(f.p).n : '')}</button></div></td></tr>`).join('')}</tbody></table></div>`, '', 'عائلات لم يُعثر على أجدادها بعد، فهي معلقة بالجذر بخط منقط. ترتبط تلقائياً عندما يضيف أحد أقاربها نسباً يجمعها، أو اربطها هنا.') : '')
     + (suggest.length && !e ? panel(`فروع تلقائية من الجد «${esc(P(crown).n)}»`, 'branch', `<div class="table-wrap"><table class="t"><thead><tr><th>الفرع</th><th>الجيل من الجد الجامع</th><th>الأفراد</th><th></th></tr></thead><tbody>
       ${suggest.slice(0, 24).map((s) => `<tr><td class="nm"><b>${esc(P(s.id).n)}</b><small>${esc(S.nasab(s.id, 5))}</small></td><td class="num">${S.genOrdinal(s.g)}</td><td class="num">${s.members}</td>
         <td><div class="acts"><button class="btn btn-xs btn-gold" data-act="make-house" data-id="${s.id}">${icon('crown')}اجعله بيتاً</button></div></td></tr>`).join('')}</tbody></table></div>`, '', 'هذه الفروع تظهر في الشجرة تلقائياً. اضغط «اجعله بيتاً» لتسميته وإعطائه رمزاً.') : '')
     + panel(`بيوت العشيرة (${hs.length})`, 'house', `<div class="table-wrap"><table class="t"><thead><tr><th>البيت</th><th>الجيل</th><th>الأفراد</th><th>الأجيال</th><th>الرموز</th><th></th></tr></thead><tbody>
       ${hs.map(({ h, members, gen, gens, codes: cc }) => `<tr><td class="nm"><b><span class="swatch" style="background:${esc(h.hc || '#d9ae22')}"></span> ${esc(h.house || 'بيت ' + h.n)}</b><small>${esc(S.nasab(h.id, 5))}</small></td>
         <td class="num">${gen}</td><td class="num"><b>${members}</b></td><td class="num">${gens}</td><td>${cc.length ? `<span class="badge badge-gold">${cc.filter((c) => c.active).length} فعال / ${cc.length}</span>` : '<span class="muted">—</span>'}</td>
-        <td><div class="acts"><a class="btn btn-xs btn-outline" href="/?root=${h.id}" target="_blank">${icon('tree')}الشجرة</a>${isManager() ? `<a class="btn btn-xs btn-gold" href="#codes/new/${h.id}">${icon('key')}رمز</a>` : ''}
+        <td><div class="acts"><a class="btn btn-xs btn-outline" href="./?root=${h.id}" target="_blank">${icon('tree')}الشجرة</a>${isManager() ? `<a class="btn btn-xs btn-gold" href="#codes/new/${h.id}">${icon('key')}رمز</a>` : ''}
         <a class="btn btn-xs btn-ghost" href="#houses/${h.id}">${icon('edit')}</a><button class="btn btn-xs btn-ghost" data-act="unhouse" data-id="${h.id}" title="إزالة البيت">${icon('x')}</button></div></td></tr>`).join('') || `<tr><td colspan="6">${empty('house', 'لم تُحدَّد بيوت بعد — أنشئ أول بيت من النموذج أعلاه')}</td></tr>`}</tbody></table></div>`);
   bindPickers(view());
 };
@@ -420,7 +420,7 @@ PAGES.codes = async (mode, arg) => {
   let shown = '';
   if (newCodeShown) {
     const c = newCodeShown;
-    const msg = `السلام عليكم\nهذا رمز صلاحيتك ${c.scope == null ? '(مشرف على الشجرة كاملة)' : '(' + scopeName(c.scope) + ')'} في ${state.settings.site_title}:\n${c.code}\n\nللإضافة: افتح ${location.origin}/add\nثم اضغط على أيقونة المفتاح 🔑 وأدخل الرمز.\nكل إضافة تُسجَّل باسمك.`;
+    const msg = `السلام عليكم\nهذا رمز صلاحيتك ${c.scope == null ? '(مشرف على الشجرة كاملة)' : '(' + scopeName(c.scope) + ')'} في ${state.settings.site_title}:\n${c.code}\n\nللإضافة: افتح ${new URL('add', location.href).href}\nثم اضغط على أيقونة المفتاح 🔑 وأدخل الرمز.\nكل إضافة تُسجَّل باسمك.`;
     shown = `<section class="panel" style="border-color:var(--primary)"><div class="panel-head"><div><h2>${icon('check')}رمز «${esc(c.holder)}» جاهز</h2><p>أرسله لصاحبه فقط.</p></div></div>
       <div class="panel-body" style="display:grid;gap:12px;justify-items:center"><div class="code-big">${esc(c.code)}</div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
       <button class="btn btn-outline" type="button" data-copy="${esc(c.code)}">${icon('copy')}نسخ الرمز</button><button class="btn btn-outline" type="button" data-copy="${esc(msg)}">${icon('copy')}نسخ رسالة كاملة</button>
@@ -545,7 +545,7 @@ PAGES.settings = async (tab = 'general') => {
   if (tab === 'clan') body = `<div class="field"><span>سلسلة الانتماء (من الأعلى إلى الأدنى)</span><div id="hRows">${(s.hierarchy || []).concat([{ label: '', value: '' }]).map((h) => `<div class="h-row"><input name="h_label" value="${esc(h.label)}" placeholder="المستوى (القبيلة، العشيرة، الفخذ…)"><input name="h_value" value="${esc(h.value)}" placeholder="الاسم"><span></span></div>`).join('')}</div></div>
     <div class="form-grid">${inp('laqab', 'ألقاب العشيرة (مفصولة بفاصلة) — تُستبعد تلقائياً من آخر الاسم', 'full')}${inp('poster_title', 'عنوان لوحة الطباعة')}${inp('poster_credits', 'سطر الإهداء أسفل اللوحة')}</div>`;
   if (tab === 'security') body = `<div class="field"><span>طريقة الإضافة</span></div><div class="radio-cards">${[['review', 'مفتوحة مع المراجعة (مقترح)', 'أي شخص يضيف نسبه، ولا يظهر قبل الاعتماد.'], ['codes', 'برموز الصلاحية فقط', 'لا يضيف إلا من لديه رمز.'], ['closed', 'مغلقة', 'إيقاف الإضافة مؤقتاً.']].map(([k, t, d]) => `<label class="radio-card"><input type="radio" name="registration_mode" value="${k}" ${s.registration_mode === k ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`).join('')}</div>
-    ${chk('code_auto_approve', 'نشر إضافات أصحاب الرموز مباشرة دون مراجعة')}${chk('require_phone', 'إلزام الزائر برقم هاتف عند الإضافة')}${chk('show_added_by', 'إظهار «من أضاف» للعامة')}<div class="form-grid" style="margin-top:10px">${inp('blocked_words', 'كلمات محظورة في الأسماء (مفصولة بفاصلة)', 'full')}</div>`;
+    ${chk('code_auto_approve', 'نشر إضافات أصحاب الرموز مباشرة دون مراجعة')}${chk('show_added_by', 'إظهار «من أضاف» للعامة')}<div class="form-grid" style="margin-top:10px">${inp('blocked_words', 'كلمات محظورة في الأسماء (مفصولة بفاصلة)', 'full')}</div>`;
   if (tab === 'tree') body = `<label class="field"><span>التلوين الافتراضي</span><select name="default_color_mode"><option value="generation">لون لكل جيل</option><option value="classic" ${s.default_color_mode === 'classic' ? 'selected' : ''}>كلاسيكي</option><option value="house" ${s.default_color_mode === 'house' ? 'selected' : ''}>لون لكل بيت</option></select></label>
     <div class="field"><span>ألوان الأجيال بالترتيب</span><div class="color-row">${(s.gen_colors || []).map((c, i) => `<span class="color-chip"><input type="color" name="gen_colors" value="${esc(c)}"><span>${S.genOrdinal(i + 1)}</span></span>`).join('')}</div></div>
     <div class="field"><span>ألوان العناصر</span><div class="color-row">${[['color_trunk', 'ألواح الأجداد'], ['color_root', 'الجد الجامع'], ['color_leaf', 'الأوراق'], ['color_branch', 'الأغصان'], ['color_head', 'رؤوس البيوت'], ['color_son', 'الأبناء']].map(([k, l]) => `<span class="color-chip"><input type="color" name="${k}" value="${esc(s[k])}"><span>${l}</span></span>`).join('')}</div></div>
