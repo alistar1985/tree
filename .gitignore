@@ -1,0 +1,12 @@
+# بيانات العشيرة الخاصة (قاعدة البيانات والنسخ والسجلات) لا تُرفع إلى GitHub
+data/*
+!data/.htaccess
+*.log
+*.sqlite
+*.sqlite-*
+
+# ملفات النظام
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/

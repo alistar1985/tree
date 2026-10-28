@@ -1,0 +1,11 @@
+# حماية ملفات النظام وقاعدة البيانات
+Options -Indexes
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(data|includes)(/|$) - [F,L]
+  RewriteRule (^|/)\. - [F,L]
+</IfModule>
+<FilesMatch "\.(sqlite|sqlite-wal|sqlite-shm|log|md|bat)$">
+  Require all denied
+</FilesMatch>
+AddDefaultCharset UTF-8
