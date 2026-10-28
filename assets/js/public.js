@@ -76,6 +76,13 @@ if (!state.installed) {
       form.outerHTML = `<div class="alert alert-warn">${icon('lock')}<div><b>${s.registration_mode === 'closed' ? 'الإضافة مغلقة حالياً' : 'الإضافة متاحة لأصحاب الرموز فقط'}</b><br>
         ${s.registration_mode === 'closed' ? 'أوقفت الإدارة استقبال الإضافات مؤقتاً.' : 'اطلب الرمز من رأس بيتك أو من الإدارة، ثم أدخله من أيقونة المفتاح.'}</div></div>
         ${s.registration_mode === 'codes' ? `<button class="btn btn-gold" type="button" data-open="codeModal">${icon('key')}لدي رمز</button>` : ''}`;
+    } else if (priv && v.type === 'public') {
+      // الزائر: يعرف من البداية أن إضافته طلب يراجعه المسؤول
+      priv.className = 'alert alert-info';
+      priv.innerHTML = `${icon('clock')}<span>يُرسَل نسبك إلى المسؤول للمراجعة، ولا يظهر في الشجرة إلا بعد موافقته.</span>`;
+      priv.hidden = false;
+      const btn = document.getElementById('sendBtn');
+      if (btn) btn.innerHTML = icon('check') + 'إرسال للمراجعة';
     } else if (priv && v.type !== 'public') {
       priv.innerHTML = `${icon('shield')}<span>أنت تعمل ${v.type === 'admin' ? 'كمالك للشجرة' : 'برمز «' + esc(v.holder) + '»'}: الإضافة ضمن صلاحياتك تُنشر في الشجرة مباشرة.</span>`;
       priv.hidden = false;

@@ -880,7 +880,7 @@ export async function submitLineage(input) {
   let status = 'pending';
   if (v.type === 'admin') status = 'approved';
   else if (v.type === 'code') {
-    if (can('add', anchor) && (!above || can('move', above.top))) status = state.settings.code_auto_approve ? 'approved' : 'pending';
+    if (can('add', anchor) && (!above || can('move', above.top))) status = 'approved'; // صاحب الصلاحية الكاملة يضيف مباشرة
   } else if (mode === 'closed') throw err('الإضافة مغلقة حالياً من قبل الإدارة');
   else if (mode === 'codes') throw err('الإضافة متاحة لأصحاب الرموز فقط — اطلب الرمز من رأس بيتك');
   const a = actor();
@@ -1145,24 +1145,17 @@ async function personDetails(id) {
 }
 
 const handlers = {
-  async tree(d) {
+  async tree() {
     if (!state.persons) await loadPersons(false);
     const showF = state.settings.show_females || state.viewer.type === 'admin';
     const persons = [];
     state.map.forEach((p) => { if (p.g !== 'f' || showF) persons.push(compact(p)); });
     persons.sort((a, b) => (P(a.i).o || 0) - (P(b.i).o || 0) || a.i - b.i);
-    const tokens = String((d && d.tokens) || '').split(',').filter((t) => /^[-\w]{10,40}$/.test(t)).slice(0, 20);
-    const mine = new Set(tokens);
-    let subs = [];
+    // طلبات الزوار لا تظهر في الشجرة لأي أحد قبل موافقة المسؤول؛ المراجِع يراها في لوحة «الطلبات» فقط
     const v = state.viewer;
     const reviewer = v.type === 'admin' || (v.type === 'code' && v.perms.approve);
-    if (reviewer) { try { subs = await pendingSubs(); } catch (e) { subs = []; } }
-    else if (tokens.length) {
-      const got = await Promise.all(tokens.map((t) => restGet('subs/' + t).then((s) => (s ? { id: t, ...s } : null)).catch(() => null)));
-      subs = got.filter((s) => s && s.st === 'pending');
-    }
-    if (reviewer) v.pending = subs.length;
-    return { ok: true, persons: persons.concat(pendingNodes(subs, mine)), viewer: v };
+    if (reviewer) { try { v.pending = (await pendingSubs()).length; } catch (e) { v.pending = 0; } }
+    return { ok: true, persons, viewer: v };
   },
   async search(d) { await loadPersons(); return { ok: true, results: searchPeople(d.q || '') }; },
   async match(d) { await syncPersons(); const names = cleanNames(d.names, 15); return { ok: true, candidates: matchChain(names, 5), names }; },
