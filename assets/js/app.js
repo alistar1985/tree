@@ -93,7 +93,7 @@
     /** تقسيم الاسم الكامل إلى سلسلة: [الشخص، الأب، الجد، ...] مع دمج الأسماء المركبة */
     parse(full, laqabs) {
       const toks = Names.clean(full).split(' ').filter(Boolean);
-      const PREFIX = new Set(['عبد', 'ابو', 'ام']);
+      const PREFIX = new Set(['عبد', 'ابو', 'ام', 'بني', 'ال']); // عبد الله، أبو بكر، بني مخزوم، آل صالح
       const SUFFIX = new Set(['الله', 'الدين', 'العابدين']);
       const DROP = new Set(['بن', 'ابن', 'بنت']);
       const out = [];

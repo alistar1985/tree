@@ -9,7 +9,7 @@
   const params = new URLSearchParams(location.search);
   const prefs = storeGet('clan-tree-prefs', {});
   const state = {
-    mode: params.get('mode') || prefs.mode || CFG.view || 'down',
+    mode: 'organic', // الشجرة الطبيعية فقط
     color: params.get('color') || prefs.color || CFG.colorMode || 'generation',
     depth: prefs.depth != null ? +prefs.depth : null,
     root: CFG.root || null,
@@ -43,6 +43,7 @@
     buildHouses();
     syncControls();
     renderBanner();
+    $('#emptyHint').hidden = r.persons.length > 1 || viewer.type !== 'public';
     $('#stPersons').textContent = r.persons.length;
     $('#stHouses').textContent = tree.houses().length;
     $('#stGens').textContent = Math.max(0, ...tree.order.map((n) => n.gen || 0));
@@ -83,7 +84,7 @@
     return `<div class="side-row">
         ${sub ? `<button type="button" class="br-tog" data-tog="${n.id}" title="فروعه">${icon('chev-l')}</button>` : '<span class="br-tog"></span>'}
         <button type="button" class="side-item ${state.root === n.id ? 'on' : ''}" data-root="${n.id}" style="--hc:${esc(color)}">
-          <span class="dot"></span><span><b>${esc(n.house || n.name)}</b><small>${esc(tree.nasab(n, 3))}</small></span><span class="cnt">${n.desc + 1}</span></button>
+          <span class="dot"></span><span><b>${esc(n.house || n.name)}</b><small>${n.floating ? 'لم يُربط بأجداده بعد · ' : ''}${esc(tree.nasab(n, 3))}</small></span><span class="cnt">${n.desc + 1}</span></button>
       </div><div class="side-sub" data-sub="${n.id}" hidden></div>`;
   }
 
@@ -151,11 +152,10 @@
 
   /* ───────────── أدوات العرض ───────────── */
   function syncControls() {
-    $$('#modeSeg button').forEach((b) => b.classList.toggle('on', b.dataset.mode === state.mode));
     $$('#colorSeg button').forEach((b) => b.classList.toggle('on', b.dataset.color === state.color));
     $('#depthSel').value = String(state.depth || 0);
   }
-  $('#modeSeg').addEventListener('click', (e) => {
+  if ($('#modeSeg')) $('#modeSeg').addEventListener('click', (e) => {
     const b = e.target.closest('[data-mode]');
     if (!b || b.dataset.mode === state.mode) return;
     state.mode = b.dataset.mode;
@@ -189,7 +189,7 @@
   }));
 
   /* ───────────── وسيلة الإيضاح ───────────── */
-  function swClass(t) { return { plaque: 'plaque', oval: 'plaque', leaf: 'leaf', ring: 'ring', badge: 'plaque' }[t] || ''; }
+  function swClass(t) { return { plaque: 'plaque', oval: 'plaque', leaf: 'leaf', ring: 'ring', badge: 'plaque', dashed: 'dash' }[t] || ''; }
   function renderLegend(items) {
     const L = $('#legend');
     const collapsed = storeGet('clan-legend-collapsed', window.innerWidth < 640);
@@ -199,6 +199,7 @@
       <ul>${items.map((it) => {
         let st = `background:${esc(it.color)}`;
         if (it.type === 'ring') st = `border-color:${esc(it.color)}`;
+        if (it.type === 'dashed') st = `border-top-color:${esc(it.color)}`;
         if (it.type === 'pending') st = 'background:#fff;border:2px dashed #b26a00';
         return `<li class="${it.wide ? 'wide' : ''}"><i class="sw ${swClass(it.type)}" style="${st}"></i>${esc(it.label)}</li>`;
       }).join('')}</ul>`;
@@ -246,6 +247,7 @@
           <b>${esc(s.names.join(' '))}</b>
           <div class="muted" style="font-size:.84rem;margin:4px 0">تحت: ${esc(s.anchor || '—')}</div>
           ${s.new.length ? `<div class="kids" style="margin:6px 0">${s.new.map((n) => `<span class="badge badge-gold">${icon('plus')}${esc(n)}</span>`).join('')}</div>` : ''}
+          ${s.above && s.above.length ? `<div class="muted" style="font-size:.82rem">${icon('link')} يُكمل أجداد فرع غير مربوط: ${esc(s.above.join(' ‹ '))}</div>` : ''}
           ${s.dups.length ? `<div class="sub-warn" style="font-size:.82rem;color:var(--warn)">${icon('merge')} موجود مسبقاً وسيُدمج تلقائياً: ${esc(s.dups.join('، '))}</div>` : ''}
           ${s.note ? `<div class="muted" style="font-size:.84rem">${icon('info')} ${esc(s.note)}</div>` : ''}
           <div class="muted" style="font-size:.78rem;margin:6px 0">${esc(s.ago)}${s.phone ? ' · <span dir="ltr">' + esc(s.phone) + '</span>' : ''} · ${esc(s.device || '')}</div>
@@ -358,6 +360,7 @@
     else if (n.branch && n.branch !== n) tags.push(`<span class="badge">${icon('branch')}فرع ${esc(n.branch.name)}</span>`);
     if (n.dead) tags.push('<span class="badge badge-muted">رحمه الله</span>');
     if (n.pending) tags.push('<span class="badge badge-warn">' + icon('clock') + 'بانتظار المراجعة</span>');
+    if (n.floating) tags.push('<span class="badge badge-info">' + icon('link') + 'لم يُربط بأجداده بعد</span>');
     if (p && p.birth_year) tags.push(`<span class="badge">مواليد ${esc(p.birth_year)}${p.death_year ? ' – ' + esc(p.death_year) : ''}</span>`);
     return `<div class="drawer-head">
       <button class="icon-btn" type="button" data-close title="إغلاق">${icon('x')}</button>
@@ -394,7 +397,7 @@
     const edit = [];
     if (P.add) edit.push(`<button class="btn btn-sm btn-primary" type="button" data-act="add">${icon('user-plus')}إضافة أبناء</button>`);
     if (P.edit) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="edit">${icon('edit')}تعديل البيانات</button>`);
-    if (P.move) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="move">${icon('move')}نقل إلى أب آخر</button>`);
+    if (P.move) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="move">${icon(n.floating ? 'link' : 'move')}${n.floating ? 'ربطه بأبيه' : 'نقل إلى أب آخر'}</button>`);
     if (P.merge) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="merge">${icon('merge')}دمج مع مكرر</button>`);
     if (P.reorder) {
       edit.push(`<button class="btn btn-sm btn-ghost" type="button" data-act="up">${icon('arrow-r')}تقديم (أكبر سناً)</button>`);

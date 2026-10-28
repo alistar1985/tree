@@ -171,7 +171,7 @@
       const by = new Map();
       list.forEach((p) => by.set(p.i, {
         id: p.i, pid: p.p, name: p.n, house: p.h || null, hc: p.c || null, dead: !!p.d, female: p.g === 'f',
-        pending: !!p.s, mine: !!p.m, nick: p.k || '', birth: p.b || null, death: p.y || null, kids: [], parent: null,
+        pending: !!p.s, mine: !!p.m, floating: !!p.u, nick: p.k || '', birth: p.b || null, death: p.y || null, kids: [], parent: null,
       }));
       const roots = [];
       by.forEach((n) => {
@@ -387,7 +387,7 @@
           p1 = [x0, y0 + dy * 0.55];
           p2 = [x1, y1 - dy * 0.5];
         }
-        links.push({ id: d.data.n.id, d: branchPath([x0, y0], p1, p2, [x1, y1], w0, w1), c: bezierD([x0, y0], p1, p2, [x1, y1]) });
+        links.push({ id: d.data.n.id, d: branchPath([x0, y0], p1, p2, [x1, y1], w0, w1), c: bezierD([x0, y0], p1, p2, [x1, y1]), floating: d.data.n.floating });
       });
 
       /* ── الرسم الفعلي ── */
@@ -410,7 +410,9 @@
       }
 
       links.forEach((l) => {
-        el(gL, 'path', { d: l.d, fill: branchColor, class: 'br', 'data-id': l.id });
+        // فرع غير مربوط بأجداده: خط منقط بدل الغصن حتى يُعرف أن ربطه بالجذر مؤقت
+        if (l.floating) el(gL, 'path', { d: l.c, fill: 'none', stroke: branchColor, 'stroke-width': 2.4, 'stroke-dasharray': '7 6', 'stroke-linecap': 'round', class: 'br', 'data-id': l.id });
+        else el(gL, 'path', { d: l.d, fill: branchColor, class: 'br', 'data-id': l.id });
       });
       this._links = links;
 
@@ -527,6 +529,7 @@
         nodes.forEach((d) => { const b = d.data.n.branch; if (b && !seen.has(b)) { seen.add(b); lg.push({ type: 'circle', color: b.bc, label: 'فرع ' + b.name }); } });
       }
       if (hasPending) lg.push({ type: 'pending', color: '#ffffff', label: 'بانتظار المراجعة', wide: true });
+      if (links.some((l) => l.floating)) lg.push({ type: 'dashed', color: branchColor, label: 'فرع لم يُربط بأجداده بعد', wide: true });
       if (hasCollapsed) lg.push({ type: 'badge', color: '#3b2314', label: 'فرع مطويّ (اضغط للتوسيع)', wide: true });
       this.legend = lg;
       this.crown = crown;
@@ -669,6 +672,7 @@
       if (n.birth) meta.push('مواليد ' + n.birth);
       if (n.dead) meta.push('رحمه الله');
       if (n.pending) meta.push('بانتظار المراجعة');
+      if (n.floating) meta.push('لم يُربط بأجداده بعد');
       if (meta.length) parts.push(`<span>${esc(meta.join(' · '))}</span>`);
       this.tip.innerHTML = parts.join('');
       this.tip.hidden = false;
@@ -767,6 +771,7 @@
         else if (it.type === 'ring') el(sw, 'circle', { r: 8, fill: 'none', stroke: it.color, 'stroke-width': 3 });
         else if (it.type === 'pending') el(sw, 'circle', { r: 8, fill: '#fff', stroke: '#b26a00', 'stroke-dasharray': '3 2', 'stroke-width': 2 });
         else if (it.type === 'badge') el(sw, 'rect', { x: -12, y: -7, width: 24, height: 14, rx: 7, fill: it.color });
+        else if (it.type === 'dashed') el(sw, 'path', { d: 'M-12,0L12,0', stroke: it.color, 'stroke-width': 3, 'stroke-dasharray': '5 4' });
         else el(sw, 'circle', { r: 9, fill: it.color, stroke: darker(it.color, 0.3), 'stroke-width': 1.4 });
         const t = el(svg, 'text', { x: x - 30, y: y + 1, 'text-anchor': 'start', 'dominant-baseline': 'central', 'font-family': FONT, 'font-size': 14, fill: '#3b2314' });
         t.textContent = it.label;

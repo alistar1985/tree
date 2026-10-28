@@ -29,6 +29,11 @@ if (admin_post()) {
             if (!$p) throw new InvalidArgumentException('الشخص غير موجود');
             person_update($id, ['is_head' => 1, 'house_name' => $houseName ?: 'بيت ' . $p['name'], 'house_color' => $color], actor());
             flash('ok', 'تم حفظ «' . ($houseName ?: 'بيت ' . $p['name']) . '». أضف أبناءه من الشجرة أو من صفحة الأفراد.');
+        } elseif ($act === 'link') {
+            // ربط فرع غير مربوط بأبيه (أو تأكيد أنه ابن مباشر للجد إن بقي تحته)
+            if (!(int)($_POST['parent_id'] ?? 0)) throw new InvalidArgumentException('اختر أبا الفرع من الشجرة');
+            person_move($id, (int)$_POST['parent_id'], actor());
+            flash('ok', 'تم ربط الفرع بأجداده.');
         } elseif ($act === 'remove') {
             person_update($id, ['is_head' => 0], actor());
             flash('ok', 'أُزيلت صفة البيت (لم يُحذف أي فرد).');
@@ -103,6 +108,31 @@ admin_head('البيوت', 'houses', ['icon' => 'house']);
     <div class="field"><span>&nbsp;</span><div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" type="submit"><?= icon('check') ?>حفظ</button><?php if ($edit): ?><a class="btn btn-ghost btn-sm" href="houses.php">إلغاء</a><?php endif; ?></div></div>
   </form>
 </section>
+
+<?php $floating = array_filter($map, fn($p) => (int)$p['floating'] && $p['status'] === 'approved'); ?>
+<?php if ($floating && !$edit): ?>
+<section class="panel">
+  <div class="panel-head"><div><h2><?= icon('link') ?>فروع بانتظار الربط (<?= count($floating) ?>)</h2><p>عائلات أُضيفت ولم يُعثر على أجدادها بعد، فهي معلقة مؤقتاً بالجذر بخط منقط. ترتبط تلقائياً عندما يضيف أحد أقاربها نسباً يجمعها، أو اربطها هنا.</p></div></div>
+  <div class="table-wrap"><table class="t">
+    <thead><tr><th>رأس الفرع</th><th>الأفراد</th><th>ربطه بأبيه</th><th></th></tr></thead>
+    <tbody>
+    <?php foreach ($floating as $f): $fid = $f['id']; ?>
+      <tr>
+        <td class="nm"><b><?= e($f['name']) ?></b><small>معلق مؤقتاً بـ «<?= e($map[$f['parent_id']]['name'] ?? '—') ?>»</small></td>
+        <td class="num"><?= count(descendant_ids($fid, $kids)) + 1 ?></td>
+        <td style="min-width:280px"><form method="post" style="display:flex;gap:6px;align-items:flex-start"><?= csrf_field() ?><input type="hidden" name="act" value="link"><input type="hidden" name="person_id" value="<?= $fid ?>">
+          <div style="flex:1"><?= person_picker('parent_id', 'ابحث عن أبيه في الشجرة…', null, true) ?></div><button class="btn btn-xs btn-primary" type="submit" style="margin-top:6px"><?= icon('link') ?>ربط</button></form></td>
+        <td><div class="acts">
+          <a class="btn btn-xs btn-ghost" href="<?= e(url('index.php?focus=' . $fid)) ?>" target="_blank" title="في الشجرة"><?= icon('tree') ?></a>
+          <form method="post" data-confirm="تأكيد أن «<?= e($f['name']) ?>» ابن مباشر لـ «<?= e($map[$f['parent_id']]['name'] ?? '') ?>»؟"><?= csrf_field() ?><input type="hidden" name="act" value="link"><input type="hidden" name="person_id" value="<?= $fid ?>"><input type="hidden" name="parent_id" value="<?= (int)$f['parent_id'] ?>">
+            <button class="btn btn-xs btn-outline" type="submit"><?= icon('check') ?>ابن مباشر لـ<?= e($map[$f['parent_id']]['name'] ?? '') ?></button></form>
+        </div></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table></div>
+</section>
+<?php endif; ?>
 
 <?php if ($suggest && !$edit): ?>
 <section class="panel">

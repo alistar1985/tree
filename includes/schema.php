@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS persons (
     bio TEXT,
     phone TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0,
+    floating INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'approved',
     submission_id INTEGER,
     created_by_type TEXT,
@@ -82,6 +83,8 @@ CREATE TABLE IF NOT EXISTS submissions (
     sons_json TEXT,
     anchor_id INTEGER,
     anchor_index INTEGER,
+    above_json TEXT,
+    top_id INTEGER,
     self_person_id INTEGER,
     submitter_name TEXT,
     phone TEXT,
@@ -160,6 +163,24 @@ CREATE TABLE IF NOT EXISTS rate_limits (
     window_start INTEGER NOT NULL
 );
 SQL);
+    schema_migrate($pdo);
+}
+
+/** ترقية قواعد البيانات القديمة: إضافة الأعمدة الجديدة دون المساس بالبيانات */
+function schema_migrate(PDO $pdo): void
+{
+    $add = [
+        'persons' => ['floating' => 'INTEGER NOT NULL DEFAULT 0'],
+        'submissions' => ['above_json' => 'TEXT', 'top_id' => 'INTEGER'],
+    ];
+    foreach ($add as $table => $cols) {
+        $have = array_column($pdo->query("PRAGMA table_info($table)")->fetchAll(PDO::FETCH_ASSOC), 'name');
+        foreach ($cols as $col => $type) {
+            if (!in_array($col, $have, true)) {
+                $pdo->exec("ALTER TABLE $table ADD COLUMN $col $type");
+            }
+        }
+    }
 }
 
 function settings_defaults(): array

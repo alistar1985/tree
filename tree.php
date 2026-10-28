@@ -13,7 +13,7 @@ $title = 'الشجرة';
 if ($cfg['root'] && ($r = person_row($cfg['root']))) {
     $title = (int)$r['is_head'] ? ($r['house_name'] ?: 'بيت ' . $r['name']) : 'فرع ' . $r['name'];
 }
-page_head($title, 'tree', ['app' => true, 'visit' => $visit]);
+page_head($title === 'الشجرة' ? '' : $title, 'tree', ['app' => true, 'visit' => $visit]);
 ?>
 <main class="tree-app" id="treeApp">
   <aside class="tree-side" id="treeSide" aria-label="البيوت">
@@ -45,22 +45,21 @@ page_head($title, 'tree', ['app' => true, 'visit' => $visit]);
         <div class="search-results" id="treeSearchResults" hidden></div>
       </div>
       <div class="tool-group view-tools">
-        <div class="seg" id="modeSeg" role="group" aria-label="شكل الشجرة">
-          <button type="button" data-mode="down" title="شجرة نازلة: الجد في الأعلى"><?= icon('tree') ?><span>نازلة</span></button>
-          <button type="button" data-mode="organic" title="شجرة طبيعية: جذع وأغصان وأوراق"><?= icon('leaf') ?><span>طبيعية</span></button>
-        </div>
-        <div class="seg" id="colorSeg" role="group" aria-label="التلوين">
-          <button type="button" data-color="generation" title="لون لكل جيل"><?= icon('layers') ?><span>الأجيال</span></button>
-          <button type="button" data-color="house" title="لون لكل بيت"><?= icon('house') ?><span>البيوت</span></button>
-          <button type="button" data-color="classic" title="رؤوس ذهبية، أبناء بيض، أحفاد أوراق"><?= icon('palette') ?><span>كلاسيكي</span></button>
-        </div>
-        <select id="depthSel" title="عدد الأجيال المعروضة">
-          <option value="0">كل الأجيال</option>
-          <?php for ($i = 3; $i <= 12; $i++): ?><option value="<?= $i ?>"><?= $i ?> أجيال</option><?php endfor; ?>
-        </select>
         <div class="menu-wrap">
-          <button class="icon-btn" type="button" id="exportBtn" title="تصدير وطباعة ومشاركة"><?= icon('download') ?></button>
-          <div class="menu" id="exportMenu" hidden>
+          <button class="icon-btn" type="button" id="exportBtn" title="خيارات العرض والطباعة"><?= icon('sliders') ?></button>
+          <div class="menu tools-menu" id="exportMenu" hidden>
+            <div class="menu-sec">التلوين</div>
+            <div class="seg" id="colorSeg" role="group" aria-label="التلوين">
+              <button type="button" data-color="generation" title="كل جيل بلون"><?= icon('layers') ?><span>الأجيال</span></button>
+              <button type="button" data-color="house" title="كل بيت بلون"><?= icon('house') ?><span>البيوت</span></button>
+              <button type="button" data-color="classic" title="رؤوس البيوت ذهبي والأبناء أبيض"><?= icon('palette') ?><span>كلاسيكي</span></button>
+            </div>
+            <div class="menu-sec">الأجيال المعروضة</div>
+            <select id="depthSel">
+              <option value="0">كل الأجيال</option>
+              <?php for ($i = 3; $i <= 12; $i++): ?><option value="<?= $i ?>"><?= $i ?> أجيال</option><?php endfor; ?>
+            </select>
+            <div class="menu-sec">طباعة ومشاركة</div>
             <button type="button" data-export="png"><?= icon('image') ?>تحميل كلوحة (صورة PNG)</button>
             <button type="button" data-export="svg"><?= icon('download') ?>تحميل SVG للطباعة الكبيرة</button>
             <button type="button" data-export="print"><?= icon('print') ?>طباعة</button>
@@ -75,6 +74,12 @@ page_head($title, 'tree', ['app' => true, 'visit' => $visit]);
         <div class="tree-loading"><div><div class="spinner"></div>جارِ رسم الشجرة…</div></div>
       </div>
       <div class="edit-banner" id="editBanner" hidden></div>
+      <div class="empty-hint" id="emptyHint" hidden>
+        <?= icon('leaf') ?>
+        <b>الشجرة في بدايتها</b>
+        <span>أضف اسمك ونسبك لتكون من أوائل المسجّلين.</span>
+        <a class="btn btn-gold" href="<?= e(url('add.php')) ?>"><?= icon('user-plus') ?>أضف نسبك</a>
+      </div>
       <div class="legend" id="legend" hidden></div>
       <div class="zoom-ctrl">
         <button class="icon-btn" type="button" data-zoom="in" title="تكبير"><?= icon('zoom-in') ?></button>

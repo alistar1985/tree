@@ -15,7 +15,7 @@ function people_map(bool $withPending = false, bool $refresh = false): array
     if (!isset($cache[$k])) {
         $where = $withPending ? "status IN ('approved','pending')" : "status = 'approved'";
         $rows = db_all("SELECT id, parent_id, name, name_key, gender, nickname, is_head, house_name, house_color,
-                birth_year, death_year, is_deceased, sort_order, status, submission_id, created_at
+                birth_year, death_year, is_deceased, sort_order, floating, status, submission_id, created_at
             FROM persons WHERE deleted_at IS NULL AND $where ORDER BY sort_order, id");
         $m = [];
         foreach ($rows as $r) {
@@ -168,6 +168,7 @@ function person_compact(array $p): array
     if ((int)$p['is_deceased']) $o['d'] = 1;
     if ($p['gender'] === 'f') $o['g'] = 'f';
     if ($p['status'] === 'pending') $o['s'] = 1;
+    if ((int)$p['floating']) $o['u'] = 1; // فرع غير مربوط بأجداده بعد (رابط مؤقت بالجذر)
     if ($p['nickname']) $o['k'] = $p['nickname'];
     if (setting('show_years') === '1') {
         if ($p['birth_year']) $o['b'] = (int)$p['birth_year'];
@@ -202,9 +203,19 @@ function match_chain(array $names, int $limit = 5): array
             $matched = [['id' => $id, 'idx' => $i, 'sim' => $s0]];
             $score = $s0;
             $j = $i + 1;
-            $a = $p['parent_id'];
+            $cur = $id;
             $conflict = null;
-            while ($j < $m && $a !== null && isset($map[$a])) {
+            $upward = false;
+            while ($j < $m) {
+                // فرع غير مربوط: نسبه المعروف ينتهي هنا، فالأسماء الأقدم في السلسلة تُضاف فوقه وتربطه بأجداده
+                if ((int)$map[$cur]['floating']) {
+                    $upward = true;
+                    break;
+                }
+                $a = $map[$cur]['parent_id'];
+                if ($a === null || !isset($map[$a])) {
+                    break;
+                }
                 $s = name_sim($map[$a]['name_key'], $keys[$j]);
                 if ($s <= 0) {
                     $conflict = ['idx' => $j, 'given' => $names[$j], 'found' => $map[$a]['name']];
@@ -213,20 +224,21 @@ function match_chain(array $names, int $limit = 5): array
                 $matched[] = ['id' => $a, 'idx' => $j, 'sim' => $s];
                 $score += $s;
                 $j++;
-                $a = $map[$a]['parent_id'];
+                $cur = $a;
             }
             $count = count($matched);
             $chainDone = $j >= $m;
-            $rootReached = !$chainDone && $conflict === null;
+            $rootReached = !$chainDone && $conflict === null && !$upward;
 
             if ($conflict && $count < 3) {
                 continue; // تطابق ضعيف يتبعه اختلاف — مرشح غير موثوق
             }
-            if ($count === 1 && !$chainDone && !$rootReached) {
+            if ($count === 1 && !$chainDone && !$rootReached && !$upward) {
                 continue;
             }
             if ($chainDone) $score += 0.5;
             if ($rootReached) $score += 0.2;
+            if ($upward) $score += 0.3;
             if ($conflict) $score -= 1.5;
 
             $cands[] = [
@@ -237,6 +249,8 @@ function match_chain(array $names, int $limit = 5): array
                 'conflict'     => $conflict,
                 'root_reached' => $rootReached,
                 'extra_names'  => $rootReached ? array_slice($names, $j) : [],
+                'attach_above' => $upward ? array_slice($names, $j) : [],
+                'top_id'       => $upward ? $cur : null,
             ];
         }
     }
@@ -266,9 +280,16 @@ function match_chain(array $names, int $limit = 5): array
             }
         }
         $coverage = ($c['anchor_index'] + $count) / max(1, $m);
-        $conf = 100 * min(1, $c['score'] / max(1, $m - $c['anchor_index'] + 0.5)) * (0.55 + 0.45 * $coverage);
+        if ($c['attach_above']) {
+            // الأسماء الأقدم غير الموجودة هي أجداد فرع غير مربوط وليست اختلافاً، فالثقة بحسب الأسماء المطابقة
+            $conf = min(88, 100 * min(1, $c['score'] / ($count + 0.5)) * 0.95);
+        } else {
+            $conf = 100 * min(1, $c['score'] / max(1, $m - $c['anchor_index'] + 0.5)) * (0.55 + 0.45 * $coverage);
+        }
         if ($c['conflict']) $conf *= 0.6;
-        if ($count === 1) $conf = min($conf, 35);
+        // اسم واحد مطابق ثقته ضعيفة، إلا إذا كان أقدم اسم في السلسلة هو الجد الأكبر نفسه (فريد لا يلتبس)
+        $isRootTail = $map[$c['anchor_id']]['parent_id'] === null && $c['anchor_index'] === $m - 1;
+        if ($count === 1) $conf = $isRootTail ? max($conf, 70) : min($conf, 35);
         $path = array_map(fn($mm) => ['id' => $mm['id'], 'name' => $map[$mm['id']]['name']], array_reverse($c['matched']));
         $anchor = $map[$c['anchor_id']];
         $out[] = [
@@ -283,6 +304,7 @@ function match_chain(array $names, int $limit = 5): array
             'fuzzy'        => $fuzzy,
             'conflict'     => $c['conflict'],
             'extra_names'  => $c['extra_names'],
+            'attach_above' => $c['attach_above'],   // أجداد جدد تُضاف فوق فرع غير مربوط فتربطه بالشجرة
             'nasab'        => nasab($c['anchor_id'], $map, 8),
             'house'        => ($h = house_of($c['anchor_id'], $map)) ? ($map[$h]['house_name'] ?: 'بيت ' . $map[$h]['name']) : null,
             'children'     => count(array_filter($map, fn($x) => $x['parent_id'] === $anchor['id'])),
@@ -493,13 +515,21 @@ function person_move(int $id, int $newParentId, array $actor): void
     if (in_array($id, lineage_ids($newParentId, $map), true)) {
         throw new InvalidArgumentException('لا يمكن نقل الشخص تحت أحد أحفاده');
     }
-    if ((int)$p['parent_id'] === $newParentId) return;
+    if ((int)$p['parent_id'] === $newParentId) {
+        if ((int)$p['floating']) {
+            // تأكيد أن الفرع غير المربوط هو فعلاً ابن مباشر لهذا الأب
+            db_exec('UPDATE persons SET floating = 0, updated_at = ?, updated_by_label = ? WHERE id = ?', [now(), $actor['label'], $id]);
+            people_refresh();
+            audit('move', 'person', $id, 'أكّد ربط فرع «' . $p['name'] . '» ابناً لـ «' . $np['name'] . '»');
+        }
+        return;
+    }
     if (sibling_with_key($newParentId, $p['name_key'], $id)) {
         throw new InvalidArgumentException('يوجد تحت «' . $np['name'] . '» ابن بالاسم نفسه — استخدم الدمج بدلاً من النقل');
     }
     $old = $p['parent_id'] ? person_row((int)$p['parent_id']) : null;
     $order = (int)db_val('SELECT COALESCE(MAX(sort_order), 0) FROM persons WHERE parent_id = ?', [$newParentId]) + 1;
-    db_exec('UPDATE persons SET parent_id = ?, sort_order = ?, updated_at = ?, updated_by_label = ? WHERE id = ?', [$newParentId, $order, now(), $actor['label'], $id]);
+    db_exec('UPDATE persons SET parent_id = ?, sort_order = ?, floating = 0, updated_at = ?, updated_by_label = ? WHERE id = ?', [$newParentId, $order, now(), $actor['label'], $id]);
     people_refresh();
     audit('move', 'person', $id, 'نقل «' . $p['name'] . '» من «' . ($old['name'] ?? '—') . '» إلى «' . $np['name'] . '»',
         ['parent_id' => $p['parent_id'], 'parent' => $old['name'] ?? null], ['parent_id' => $newParentId, 'parent' => $np['name']]);
@@ -627,12 +657,26 @@ function submission_create(array $in, array $actor): array
     }
     $anchorId = isset($in['anchor_id']) && $in['anchor_id'] !== '' && $in['anchor_id'] !== null ? (int)$in['anchor_id'] : null;
     $idx = (int)($in['anchor_index'] ?? 0);
-    if ($anchorId !== null) {
+    $floating = false;
+    if ($anchorId === null) {
+        // لم يُعثر على أجداده: يُضاف نسبه كاملاً فرعاً مستقلاً معلقاً مؤقتاً بالجذر حتى يرتبط بأجداده لاحقاً
+        $anchorId = tree_root_id();
+        if ($anchorId === null) throw new InvalidArgumentException('الشجرة غير مهيأة بعد');
+        $idx = count($names);
+        $floating = true;
+        // إن كان أقدم اسم هو الجد الأكبر نفسه فالنسب مربوط به فعلاً وليس فرعاً معلقاً
+        if (name_key($names[$idx - 1]) === (person_row($anchorId)['name_key'] ?? '')) {
+            $idx--;
+            $floating = false;
+        }
+    } else {
         $anchor = person_row($anchorId);
         if (!$anchor || $anchor['status'] !== 'approved') throw new InvalidArgumentException('نقطة الربط غير موجودة');
         if ($idx < 0 || $idx >= count($names)) throw new InvalidArgumentException('نقطة ربط غير صالحة');
         if ($anchor['gender'] === 'f' && $idx > 0) throw new InvalidArgumentException('لا يُضاف أبناء تحت الإناث');
     }
+    // أجداد أقدم تكمل فرعاً غير مربوط (تُطبق عند الاعتماد)
+    $above = $floating ? null : chain_above($anchorId, $idx, $names);
 
     $mode = setting('registration_mode');
     $status = 'pending';
@@ -640,14 +684,14 @@ function submission_create(array $in, array $actor): array
         $status = 'approved';
     } elseif ($actor['type'] === 'code') {
         $c = current_code();
-        if ($anchorId === null || !can_on_person('add', $anchorId)) {
-            throw new InvalidArgumentException('نقطة الربط خارج نطاق رمزك — يمكنك الإضافة ضمن بيتك فقط');
+        if (can_on_person('add', $anchorId) && (!$above || can_on_person('move', $above['top']))) {
+            $left = code_additions_left($c);
+            if ($left !== null && $left < $idx + count($sons)) {
+                throw new InvalidArgumentException('تجاوزت الحد المسموح للإضافات بهذا الرمز');
+            }
+            $status = setting('code_auto_approve') === '1' ? 'approved' : 'pending';
         }
-        $left = code_additions_left($c);
-        if ($left !== null && $left < $idx + count($sons)) {
-            throw new InvalidArgumentException('تجاوزت الحد المسموح للإضافات بهذا الرمز');
-        }
-        $status = setting('code_auto_approve') === '1' ? 'approved' : 'pending';
+        // خارج نطاق الرمز: يذهب للمراجعة كأي طلب
     } else {
         if ($mode === 'closed') throw new InvalidArgumentException('الإضافة مغلقة حالياً من قبل الإدارة');
         if ($mode === 'codes') throw new InvalidArgumentException('الإضافة متاحة لأصحاب رموز البيوت فقط — اطلب الرمز من رأس بيتك');
@@ -657,9 +701,10 @@ function submission_create(array $in, array $actor): array
     $dev = ua_parse($ua);
     $token = random_token(16);
     $t = now();
-    db_exec('INSERT INTO submissions (token, chain_json, sons_json, anchor_id, anchor_index, submitter_name, phone, note, status, code_id, ip, user_agent, device, visitor_id, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
-        $token, json_encode($names, JSON_UNESCAPED_UNICODE), json_encode($sons, JSON_UNESCAPED_UNICODE), $anchorId, $anchorId !== null ? $idx : null,
+    db_exec('INSERT INTO submissions (token, chain_json, sons_json, anchor_id, anchor_index, above_json, top_id, submitter_name, phone, note, status, code_id, ip, user_agent, device, visitor_id, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+        $token, json_encode($names, JSON_UNESCAPED_UNICODE), json_encode($sons, JSON_UNESCAPED_UNICODE), $anchorId, $idx,
+        $above ? json_encode($above['names'], JSON_UNESCAPED_UNICODE) : null, $above ? $above['top'] : null,
         implode(' ', $names), $phone ?: null, mb_substr(trim(strip_tags((string)($in['note'] ?? ''))), 0, 500) ?: null,
         $status === 'approved' ? 'approved' : 'pending', $actor['type'] === 'code' ? $actor['id'] : null,
         client_ip(), $ua, $dev['device'] . ' · ' . $dev['os'] . ' · ' . $dev['browser'], visitor_id(), $t,
@@ -669,24 +714,117 @@ function submission_create(array $in, array $actor): array
         db_exec('UPDATE submissions SET reviewed_by_label = ?, reviewed_at = ? WHERE id = ?', [$actor['label'] . ' (اعتماد تلقائي)', $t, $subId]);
     }
 
-    $selfId = null;
-    $created = [];
-    if ($anchorId !== null) {
-        $sub = db_one('SELECT * FROM submissions WHERE id = ?', [$subId]);
-        [$selfId, $created] = submission_build($sub, $status, $actor, [
-            'phone' => $phone ?: null,
-            'nickname' => $in['nickname'] ?? null,
-            'birth_year' => $in['birth_year'] ?? null,
-        ]);
-    }
+    $sub = db_one('SELECT * FROM submissions WHERE id = ?', [$subId]);
+    [$selfId, $created] = submission_build($sub, $status, $actor, [
+        'phone' => $phone ?: null,
+        'nickname' => $in['nickname'] ?? null,
+        'birth_year' => $in['birth_year'] ?? null,
+    ]);
 
     $label = $actor['type'] === 'public' ? 'زائر: ' . implode(' ', array_slice($names, 0, 3)) . ($phone ? ' (' . $phone . ')' : '') : $actor['label'];
     $sum = ($status === 'approved' ? 'أضاف نسب ' : 'طلب إضافة نسب ') . '«' . implode(' ', $names) . '»'
-        . ($anchorId === null ? ' — بدون ربط (بانتظار المشرف)' : ($created ? ' — ' . ar_count(count($created), 'اسم جديد', 'اسمان جديدان', 'أسماء جديدة', 'اسماً جديداً') : ''));
+        . ($floating ? ' — فرع جديد غير مربوط بعد' : ($created ? ' — ' . ar_count(count($created), 'اسم جديد', 'اسمان جديدان', 'أسماء جديدة', 'اسماً جديداً') : ''))
+        . ($above ? ' ويكمل أجداد «' . (people_map(true)[$above['top']]['name'] ?? '') . '»' : '');
     audit($status === 'approved' ? 'create' : 'submit', 'submission', $subId, $sum, null,
-        ['names' => $names, 'sons' => $sons, 'anchor_id' => $anchorId, 'created' => $created], ['type' => $actor['type'], 'id' => $actor['id'], 'label' => $label]);
+        ['names' => $names, 'sons' => $sons, 'anchor_id' => $anchorId, 'floating' => $floating, 'above' => $above, 'created' => $created],
+        ['type' => $actor['type'], 'id' => $actor['id'], 'label' => $label]);
+    if ($status === 'approved') {
+        apply_above($sub, $actor);
+    }
 
-    return ['token' => $token, 'status' => $status, 'self_id' => $selfId, 'created' => $created, 'submission_id' => $subId];
+    return ['token' => $token, 'status' => $status, 'self_id' => $selfId, 'created' => $created, 'submission_id' => $subId, 'floating' => $floating];
+}
+
+/** أفضل مرشح للربط التلقائي: مرشح أول وحيد بثقة 60% فأكثر، وإلا null */
+function best_match(array $cands): ?array
+{
+    $bests = array_values(array_filter($cands, fn($c) => $c['best']));
+    return count($bests) === 1 && $bests[0]['confidence'] >= 60 ? $bests[0] : null;
+}
+
+function tree_root_id(): ?int
+{
+    $id = db_val("SELECT id FROM persons WHERE parent_id IS NULL AND deleted_at IS NULL AND status = 'approved' ORDER BY id LIMIT 1");
+    return $id !== false && $id !== null ? (int)$id : null;
+}
+
+/**
+ * إن كانت سلسلة الأسماء فوق نقطة الربط تصل إلى رأس فرع غير مربوط وما زال في السلسلة أسماء أقدم،
+ * فهذه الأسماء أجداد ذلك الفرع: يعيد ['top' => رأس الفرع، 'names' => [أبوه، جده، ...]].
+ */
+function chain_above(int $anchorId, int $idx, array $names): ?array
+{
+    $map = people_map();
+    $cur = $anchorId;
+    $j = $idx + 1;
+    $m = count($names);
+    while ($j < $m && isset($map[$cur])) {
+        if ((int)$map[$cur]['floating']) {
+            return ['top' => $cur, 'names' => array_slice($names, $j)];
+        }
+        $a = $map[$cur]['parent_id'];
+        if ($a === null || !isset($map[$a]) || name_sim($map[$a]['name_key'], name_key($names[$j])) <= 0) {
+            return null;
+        }
+        $cur = $a;
+        $j++;
+    }
+    return null;
+}
+
+/**
+ * ربط فرع غير مربوط بأجداده: إن وُجد الأجداد في الشجرة يُنقل الفرع تحتهم،
+ * وإلا تُضاف أسماؤهم فوقه ويصبح أقدمهم رأس الفرع غير المربوط. يعيد ملخص العملية أو null.
+ */
+function apply_above(array $sub, array $actor): ?string
+{
+    $above = json_decode((string)($sub['above_json'] ?? ''), true);
+    $topId = (int)($sub['top_id'] ?? 0);
+    if (!$above || !$topId) return null;
+    $aboveAll = $above;
+    $top = person_row($topId);
+    if (!$top || !(int)$top['floating']) return null; // رُبط بطريقة أخرى قبل الاعتماد
+    $map = people_map();
+    $skip = array_flip(descendant_ids($topId, children_index($map)));
+    $skip[$topId] = true;
+    $parent = null;
+    foreach (match_chain($above, 5) as $c) {
+        if (isset($skip[$c['anchor_id']]) || !$c['best'] || $c['confidence'] < 60) continue;
+        $parent = $c['anchor_id'];
+        for ($k = $c['anchor_index'] - 1; $k >= 0; $k--) {
+            $ex = sibling_with_key($parent, name_key($above[$k]), null, true);
+            $parent = $ex ? (int)$ex['id'] : person_insert($parent, ['name' => $above[$k]], $actor, 'approved', (int)$sub['id']);
+        }
+        break;
+    }
+    if ($parent === null) {
+        $parent = (int)$top['parent_id'];
+        $n = count($above);
+        // أقدم اسم هو الجد الذي يتعلق به الفرع: يُحذف ويُربط تحته مباشرة دون تعليق
+        $rootKey = person_row($parent)['name_key'] ?? '';
+        $hang = true;
+        if ($n && name_key($above[$n - 1]) === $rootKey) {
+            array_pop($above);
+            $n--;
+            $hang = false;
+        }
+        for ($k = $n - 1; $k >= 0; $k--) {
+            $parent = person_insert($parent, ['name' => $above[$k]], $actor, 'approved', (int)$sub['id']);
+            if ($k === $n - 1 && $hang) {
+                db_exec('UPDATE persons SET floating = 1 WHERE id = ?', [$parent]);
+            }
+        }
+    }
+    $twin = sibling_with_key($parent, $top['name_key'], $topId, true);
+    if ($twin) {
+        person_merge($topId, (int)$twin['id'], $actor, null, false);
+    } else {
+        db_exec('UPDATE persons SET parent_id = ?, floating = 0 WHERE id = ?', [$parent, $topId]);
+    }
+    people_refresh();
+    $sum = 'ربط فرع «' . $top['name'] . '» بأجداده: ' . implode(' ‹ ', $aboveAll);
+    audit('move', 'person', $topId, $sum);
+    return $sum;
 }
 
 /**
@@ -702,8 +840,10 @@ function submission_build(array $sub, string $status, array $actor, array $selfE
     $label = $actor['type'] === 'public' ? 'زائر: ' . implode(' ', array_slice($names, 0, 3)) . ($sub['phone'] ? ' (' . $sub['phone'] . ')' : '') : $actor['label'];
     $act = ['type' => $actor['type'], 'id' => $actor['id'], 'label' => $label];
 
+    $floatTop = $idx === count($names); // فرع جديد غير مربوط: أقدم اسم يتعلق بالجذر مؤقتاً
     for ($k = $idx - 1; $k >= 0; $k--) {
-        $existing = sibling_with_key($parent, name_key($names[$k]));
+        $isTop = $floatTop && $k === $idx - 1;
+        $existing = $isTop ? null : sibling_with_key($parent, name_key($names[$k]));
         if ($existing && ($existing['status'] === 'approved' || (int)$existing['submission_id'] === (int)$sub['id'])) {
             $parent = (int)$existing['id'];
             continue;
@@ -713,6 +853,9 @@ function submission_build(array $sub, string $status, array $actor, array $selfE
             $fields += array_filter($selfExtra, fn($v) => $v !== null && $v !== '');
         }
         $parent = person_insert($parent, $fields, $act, $status, (int)$sub['id']);
+        if ($isTop) {
+            db_exec('UPDATE persons SET floating = 1 WHERE id = ?', [$parent]);
+        }
         $created[] = $parent;
     }
     $selfId = $parent;
@@ -731,23 +874,38 @@ function submission_approve(int $subId, array $actor, ?int $newAnchor = null, ?i
     if (!$sub || $sub['status'] !== 'pending') throw new InvalidArgumentException('الطلب غير موجود أو تمت مراجعته');
     $names = json_decode($sub['chain_json'], true) ?: [];
 
+    if ($newAnchor === null && ($sub['anchor_id'] === null || (int)$sub['anchor_index'] >= count($names))) {
+        // فرع جديد غير مربوط: ربما اعتُمد نسب أقاربه منذ إرساله، فنعيد المطابقة لنربطه بدل أن يتكرر
+        $best = best_match(match_chain($names, 5));
+        if ($best) {
+            $newAnchor = $best['anchor_id'];
+            $newIndex = $best['anchor_index'];
+        } elseif ($sub['anchor_id'] === null) {
+            $newAnchor = tree_root_id();
+            $newIndex = count($names);
+        }
+    }
     if ($newAnchor !== null) {
         if (!person_row($newAnchor)) throw new InvalidArgumentException('نقطة الربط الجديدة غير موجودة');
-        $newIndex = max(0, min(count($names) - 1, (int)$newIndex));
+        $newIndex = max(0, min(count($names), (int)$newIndex));
+        $above = $newIndex < count($names) ? chain_above($newAnchor, $newIndex, $names) : null;
         db_exec("DELETE FROM persons WHERE submission_id = ? AND status = 'pending'", [$subId]);
-        db_exec('UPDATE submissions SET anchor_id = ?, anchor_index = ? WHERE id = ?', [$newAnchor, $newIndex, $subId]);
+        db_exec('UPDATE submissions SET anchor_id = ?, anchor_index = ?, above_json = ?, top_id = ? WHERE id = ?', [
+            $newAnchor, $newIndex, $above ? json_encode($above['names'], JSON_UNESCAPED_UNICODE) : null, $above ? $above['top'] : null, $subId,
+        ]);
         people_refresh();
         $sub = db_one('SELECT * FROM submissions WHERE id = ?', [$subId]);
         submission_build($sub, 'pending', ['type' => 'public', 'id' => null, 'label' => 'زائر'], ['phone' => $sub['phone']]);
     }
-    if ($sub['anchor_id'] === null) throw new InvalidArgumentException('حدد نقطة الربط أولاً');
 
     $merged = [];
     $rows = db_all("SELECT * FROM persons WHERE submission_id = ? AND status = 'pending' AND deleted_at IS NULL ORDER BY id", [$subId]);
     foreach ($rows as $r) {
         $r = person_row((int)$r['id']);
         if (!$r) continue;
-        $twin = sibling_with_key($r['parent_id'] !== null ? (int)$r['parent_id'] : null, $r['name_key'], (int)$r['id'], true);
+        // رأس فرع غير مربوط لا يُدمج مع أبناء الجذر لمجرد تشابه الاسم
+        $twin = (int)$r['floating'] ? null : sibling_with_key($r['parent_id'] !== null ? (int)$r['parent_id'] : null, $r['name_key'], (int)$r['id'], true);
+        if ($twin && (int)$twin['floating']) $twin = null;
         if ($twin) {
             db_exec('UPDATE persons SET parent_id = ? WHERE parent_id = ? AND deleted_at IS NULL', [(int)$twin['id'], (int)$r['id']]);
             db_exec("UPDATE persons SET status = 'rejected', deleted_at = ?, delete_batch = ? WHERE id = ?", [now(), 'dup:' . $subId, (int)$r['id']]);
@@ -761,8 +919,9 @@ function submission_approve(int $subId, array $actor, ?int $newAnchor = null, ?i
     }
     db_exec("UPDATE submissions SET status = 'approved', reviewed_by_label = ?, reviewed_at = ? WHERE id = ?", [$actor['label'], now(), $subId]);
     people_refresh();
-    audit('approve', 'submission', $subId, 'اعتمد طلب «' . implode(' ', $names) . '»' . ($merged ? ' (دُمج تلقائياً: ' . implode('، ', $merged) . ')' : ''));
-    return ['merged' => $merged];
+    $linked = apply_above(db_one('SELECT * FROM submissions WHERE id = ?', [$subId]), $actor);
+    audit('approve', 'submission', $subId, 'اعتمد طلب «' . implode(' ', $names) . '»' . ($merged ? ' (دُمج تلقائياً: ' . implode('، ', $merged) . ')' : '') . ($linked ? ' — ' . $linked : ''));
+    return ['merged' => $merged, 'linked' => $linked];
 }
 
 function submission_reject(int $subId, array $actor, string $note = ''): void

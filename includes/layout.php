@@ -80,13 +80,12 @@ function page_head(string $title, string $active = '', array $opt = []): void
       <?= logo_svg($app ? 34 : 42) ?>
       <span class="brand-txt"><b><?= e($site) ?></b><?php if (!$app && ($h = clan_hierarchy())): ?><small><?= e(implode(' · ', array_map(fn($l) => $l['value'], $h))) ?></small><?php endif; ?></span>
     </a>
-    <nav class="main-nav" id="mainNav">
-      <a href="<?= e(url('index.php')) ?>" class="<?= $active === 'home' ? 'on' : '' ?>"><?= icon('home') ?>الرئيسية</a>
-      <a href="<?= e(url('tree.php')) ?>" class="<?= $active === 'tree' ? 'on' : '' ?>"><?= icon('tree') ?>الشجرة</a>
-      <a href="<?= e(url('index.php#houses')) ?>"><?= icon('house') ?>البيوت</a>
-      <a href="<?= e(url('add.php')) ?>" class="nav-cta <?= $active === 'add' ? 'on' : '' ?>"><?= icon('user-plus') ?>أضف نسبك</a>
-    </nav>
     <div class="header-tools">
+      <?php if ($active === 'add'): ?>
+        <a class="btn btn-outline btn-sm header-cta" href="<?= e(url('index.php')) ?>"><?= icon('tree') ?>الشجرة</a>
+      <?php else: ?>
+        <a class="btn btn-gold btn-sm header-cta" href="<?= e(url('add.php')) ?>"><?= icon('user-plus') ?>أضف نسبك</a>
+      <?php endif; ?>
       <?php if ($admin): ?>
         <a class="chip chip-admin" href="<?= e(url('admin/index.php')) ?>" title="لوحة التحكم"><?= icon('dashboard') ?><span>لوحة التحكم</span></a>
       <?php elseif ($code): ?>
@@ -95,7 +94,6 @@ function page_head(string $title, string $active = '', array $opt = []): void
         <button class="icon-btn" type="button" data-open="codeModal" title="دخول برمز الصلاحية"><?= icon('key') ?></button>
       <?php endif; ?>
       <button class="icon-btn" type="button" data-theme-toggle title="الوضع الليلي/النهاري"><?= icon('moon', 'only-light') ?><?= icon('sun', 'only-dark') ?></button>
-      <button class="icon-btn nav-toggle" type="button" data-nav-toggle aria-controls="mainNav" title="القائمة"><?= icon('menu') ?></button>
     </div>
   </div>
 </header>
@@ -156,23 +154,11 @@ function page_foot(array $opt = []): void
     $app = !empty($opt['app']);
     code_modal();
     if (!$app): ?>
-<footer class="site-footer">
+<footer class="site-footer slim">
   <div class="wrap footer-in">
-    <div class="footer-brand">
-      <?= logo_svg(46) ?>
-      <div>
-        <b><?= e(setting('site_title')) ?></b>
-        <p><?= e(setting('contact_note')) ?></p>
-        <?php if ($p = setting('contact_phone')): ?><a class="footer-phone" href="https://wa.me/<?= e(preg_replace('/\D/', '', $p)) ?>" target="_blank" rel="noopener"><?= icon('whatsapp') ?><span dir="ltr"><?= e($p) ?></span></a><?php endif; ?>
-      </div>
-    </div>
-    <nav class="footer-links">
-      <a href="<?= e(url('tree.php')) ?>">الشجرة الكاملة</a>
-      <a href="<?= e(url('add.php')) ?>">أضف نسبك</a>
-      <a href="<?= e(url('index.php#how')) ?>">كيف تعمل الشجرة</a>
-    </nav>
+    <span>© <?= date('Y') ?> <?= e(setting('clan_name')) ?></span>
+    <?php if ($p = setting('contact_phone')): ?><a class="footer-phone" href="https://wa.me/<?= e(preg_replace('/\D/', '', $p)) ?>" target="_blank" rel="noopener"><?= icon('whatsapp') ?><span><?= e(setting('contact_note') ?: 'تواصل مع الإدارة') ?></span></a><?php endif; ?>
   </div>
-  <div class="wrap footer-copy">© <?= date('Y') ?> <?= e(setting('clan_name')) ?> — جميع الحقوق محفوظة</div>
 </footer>
 <?php endif; ?>
 <div class="toasts" id="toasts" aria-live="polite"></div>

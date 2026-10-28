@@ -9,7 +9,7 @@ const SETTING_TABS = [
     'general'  => ['عام', 'home', ['site_title', 'clan_name', 'tagline', 'about', 'contact_phone', 'contact_note']],
     'clan'     => ['العشيرة والنسب', 'tree', ['hierarchy', 'laqab', 'poster_title', 'poster_credits']],
     'security' => ['التسجيل والحماية', 'shield', ['registration_mode', 'require_phone', 'code_auto_approve', 'submissions_per_hour', 'blocked_words', 'show_added_by']],
-    'tree'     => ['الشجرة والألوان', 'palette', ['default_view', 'default_color_mode', 'gen_colors', 'color_trunk', 'color_root', 'color_head', 'color_son', 'color_leaf', 'color_branch', 'show_females', 'show_years']],
+    'tree'     => ['الشجرة والألوان', 'palette', ['default_color_mode', 'gen_colors', 'color_trunk', 'color_root', 'color_head', 'color_son', 'color_leaf', 'color_branch', 'show_females', 'show_years']],
     'verses'   => ['الآيات والزخارف', 'leaf', ['verse_1', 'verse_1_ref', 'verse_2', 'verse_2_ref']],
     'system'   => ['النظام والنسخ الاحتياطي', 'database', ['timezone', 'track_visits', 'anonymize_ip']],
 ];
@@ -155,7 +155,6 @@ admin_head('الإعدادات', 'settings', ['icon' => 'sliders']);
 
   <?php elseif ($tab === 'tree'): ?>
     <div class="form-grid">
-      <label class="field"><span>الشكل الافتراضي للشجرة</span><select name="default_view"><option value="down" <?= $s['default_view'] === 'down' ? 'selected' : '' ?>>نازلة: الجد في الأعلى والأجيال للأسفل</option><option value="organic" <?= $s['default_view'] === 'organic' ? 'selected' : '' ?>>طبيعية: جذع وأغصان وأوراق (كاللوحات)</option></select></label>
       <label class="field"><span>التلوين الافتراضي</span><select name="default_color_mode">
         <option value="generation" <?= $s['default_color_mode'] === 'generation' ? 'selected' : '' ?>>لون لكل جيل (مع دليل الألوان)</option>
         <option value="classic" <?= $s['default_color_mode'] === 'classic' ? 'selected' : '' ?>>كلاسيكي: رؤوس البيوت ذهبي، الأبناء أبيض، الأحفاد أوراق خضراء</option>

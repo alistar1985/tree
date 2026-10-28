@@ -69,12 +69,27 @@ admin_head('الطلبات والاقتراحات', 'review', ['icon' => 'inbox'
             <?php foreach ($names as $i => $nm): ?><span class="n <?= $i === 0 ? 'anchor' : 'old' ?>" title="<?= e(i_role($i)) ?>"><?= e($nm) ?></span><?php if ($i < count($names) - 1): ?><span class="arrow">›</span><?php endif; ?><?php endforeach; ?>
           </div>
         </div>
-        <span class="badge <?= $anchor ? 'badge-info' : 'badge-warn' ?>"><?= $anchor ? icon('link') . 'مربوط تلقائياً' : icon('alert') . 'بدون ربط' ?></span>
+        <?php $isFloat = $anchor && (int)$s['anchor_index'] >= count($names); $above = json_decode((string)$s['above_json'], true) ?: []; ?>
+        <span class="badge <?= $isFloat ? 'badge-warn' : ($anchor ? 'badge-info' : 'badge-warn') ?>"><?= $isFloat ? icon('branch') . 'فرع جديد لم يُربط بأجداده' : ($anchor ? icon('link') . 'مربوط تلقائياً' : icon('alert') . 'بدون ربط') ?></span>
       </div>
-      <?php if ($anchor && isset($mapAll[$anchor])): ?>
+      <?php if ($isFloat): ?>
+        <div style="font-size:.92rem">لم يُعثر على أجداده في الشجرة، فسيُضاف نسبه كاملاً فرعاً معلقاً مؤقتاً بـ «<?= e($mapAll[$anchor]['name'] ?? '') ?>» ويرتبط تلقائياً عندما يضيف أقاربه أنسابهم. أو اربطه الآن:</div>
+        <div class="sub-actions">
+          <?php foreach (array_slice(match_chain($names, 3), 0, 3) as $c): if ($c['confidence'] < 25) continue; ?>
+            <form method="post"><?= csrf_field() ?><input type="hidden" name="act" value="approve"><input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+              <input type="hidden" name="anchor_id" value="<?= (int)$c['anchor_id'] ?>"><input type="hidden" name="anchor_index" value="<?= (int)$c['anchor_index'] ?>">
+              <button class="btn btn-xs btn-outline" type="submit" title="ربط واعتماد"><?= icon('link') ?>تحت <?= e(nasab((int)$c['anchor_id'], $mapAll, 4)) ?> (<?= (int)$c['confidence'] ?>%)</button></form>
+          <?php endforeach; ?>
+        </div>
+      <?php elseif ($anchor && isset($mapAll[$anchor])): ?>
         <div style="font-size:.92rem">نقطة الربط: <a href="<?= e(url('tree.php?focus=' . $anchor)) ?>" target="_blank"><b><?= e(nasab($anchor, $mapAll, 8)) ?></b></a>
           <?php if ($persons): ?> — يُضاف تحته: <?php foreach ($persons as $p): ?><span class="badge badge-gold"><?= icon('plus') ?><?= e($p['name']) ?></span> <?php endforeach; ?><?php endif; ?>
         </div>
+      <?php endif; ?>
+      <?php if ($above && isset($mapAll[(int)$s['top_id']])): ?>
+        <div class="sub-warn" style="color:var(--info)"><?= icon('link') ?>يُكمل أجداد الفرع غير المربوط «<?= e($mapAll[(int)$s['top_id']]['name']) ?>»: <?= e(implode(' ‹ ', $above)) ?> — يُربط عند الاعتماد</div>
+      <?php endif; ?>
+      <?php if ($anchor): ?>
         <?php foreach ($persons as $p):
             $twin = sibling_with_key($p['parent_id'] !== null ? (int)$p['parent_id'] : null, $p['name_key'], (int)$p['id'], true);
             if ($twin): ?><div class="sub-warn"><?= icon('merge') ?>«<?= e($p['name']) ?>» موجود مسبقاً تحت الأب نفسه — سيُدمج تلقائياً عند الاعتماد</div><?php endif;

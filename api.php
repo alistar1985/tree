@@ -190,7 +190,7 @@ try {
                 'id' => $id, 'name' => $p['name'], 'nickname' => $p['nickname'], 'gender' => $p['gender'],
                 'is_head' => (int)$p['is_head'], 'house_name' => $p['house_name'], 'house_color' => $p['house_color'],
                 'birth_year' => $p['birth_year'], 'death_year' => $p['death_year'], 'is_deceased' => (int)$p['is_deceased'],
-                'bio' => $p['bio'], 'status' => $p['status'], 'sort_order' => (int)$p['sort_order'],
+                'bio' => $p['bio'], 'status' => $p['status'], 'floating' => (int)$p['floating'], 'sort_order' => (int)$p['sort_order'],
                 'created_at' => fmt_dt($p['created_at'], false), 'updated_at' => fmt_dt($p['updated_at']),
                 'created_by' => $showBy ? $p['created_by_label'] : null, 'updated_by' => $showBy ? $p['updated_by_label'] : null,
                 'lineage' => array_map(fn($x) => ['id' => $x, 'name' => $map[$x]['name']], $line),
@@ -271,7 +271,8 @@ try {
                 }
                 $items[] = [
                     'id' => (int)$s['id'], 'names' => json_decode($s['chain_json'], true) ?: [],
-                    'anchor' => isset($map[(int)$s['anchor_id']]) ? nasab((int)$s['anchor_id'], $map, 6) : null,
+                    'anchor' => (int)$s['anchor_index'] >= count(json_decode($s['chain_json'], true) ?: []) ? 'فرع جديد لم يُربط بأجداده بعد' : (isset($map[(int)$s['anchor_id']]) ? nasab((int)$s['anchor_id'], $map, 6) : null),
+                    'above' => json_decode((string)$s['above_json'], true) ?: [],
                     'new' => array_column($persons, 'name'), 'dups' => $dups,
                     'self_id' => $s['self_person_id'] ? (int)$s['self_person_id'] : null,
                     'phone' => $s['phone'], 'note' => $s['note'], 'ago' => time_ago($s['created_at']), 'device' => $s['device'],
