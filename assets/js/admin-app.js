@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=14';
+import * as S from './store.js?v=15';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -56,7 +56,7 @@ function fillLogos() { if (window.fillLogos) window.fillLogos(root); }
 /* ───────────── الهيكل والتنقل ───────────── */
 const NAV = [
   ['', 'الرئيسية'], ['dashboard', 'لوحة المعلومات', 'dashboard'], ['review', 'الطلبات والاقتراحات', 'inbox'],
-  ['', 'الشجرة'], ['people', 'الأفراد', 'users'], ['houses', 'البيوت', 'house'], ['codes', 'رموز الصلاحية', 'key', 'manager'],
+  ['', 'الشجرة'], ['people', 'الأفراد', 'users'], ['trunk', 'الأجداد (الجذع)', 'tree'], ['houses', 'البيوت', 'house'], ['codes', 'رموز الصلاحية', 'key', 'manager'],
   ['', 'المتابعة'], ['log', 'سجل العمليات', 'history'], ['visitors', 'الزوار والأجهزة', 'eye', 'manager'],
   ['', 'النظام'], ['settings', 'الإعدادات', 'sliders', 'manager'], ['admins', 'المشرفون', 'shield'],
 ];
@@ -378,6 +378,54 @@ async function personEdit(id) {
   bindPickers(view());
 }
 
+/* ───────────── الأجداد الرئيسيون (الجذع) ─────────────
+   الأجداد من أعلى جد حتى أول تفرع يظهرون ألواحاً على جذع الشجرة: الأقدم في القاع وأكبرها،
+   ثم الأحدث فالأصغر صعوداً حتى الجد الجامع الذي تتفرع منه البيوت. */
+function trunkChain() {
+  const r = S.rootId();
+  const out = [];
+  let x = r;
+  while (x != null && P(x)) { out.push(x); const ks = S.kidsOf(x); if (ks.length !== 1) break; x = ks[0]; }
+  return out;
+}
+PAGES.trunk = async () => {
+  setTitle('الأجداد الرئيسيون (الجذع)', 'tree');
+  const chain = trunkChain();
+  if (!chain.length) { view().innerHTML = `<div class="panel">${empty('tree', 'الشجرة فارغة')}</div>`; return; }
+  const crown = chain[chain.length - 1];
+  const branching = S.kidsOf(crown).length > 1;
+  const n = chain.length;
+  // المعاينة: الجد الجامع فوق، والألواح تكبر كلما نزلنا
+  const preview = `<div class="trunk-prev">
+      ${branching ? `<div class="tp-branches">${S.kidsOf(crown).slice(0, 6).map((k) => `<span>${esc(P(k).n)}</span>`).join('')}${S.kidsOf(crown).length > 6 ? '<span>…</span>' : ''}</div>` : ''}
+      <div class="tp-crown">${esc(P(crown).n)}</div>
+      <div class="tp-trunk">${chain.slice(0, -1).reverse().map((id, i, arr) => `<div class="tp-plaque" style="width:${Math.round(52 + 48 * (i + 1) / arr.length)}%">${esc(P(id).n)}</div>`).join('') || '<small class="muted">لا أجداد على الجذع بعد</small>'}</div>
+      <div class="tp-ground"></div></div>`;
+  const rows = chain.slice().reverse().map((id, i) => {
+    const pos = n - i; // 1 = القاع
+    const isCrown = id === crown, isRoot = pos === 1;
+    return `<li class="tr-row ${isCrown ? 'crown' : ''}">
+      <span class="tr-n">${isCrown ? icon('crown') : pos}</span>
+      <form class="tr-name" data-form="trunk-rename" data-id="${id}"><input name="name" value="${esc(P(id).n)}" required><button class="btn btn-xs btn-ghost" type="submit" title="حفظ الاسم">${icon('check')}</button></form>
+      <span class="tr-tag">${isCrown ? (branching ? 'الجد الجامع — منه يبدأ التفرع' : 'آخر اسم في السلسلة') : isRoot ? 'القاع — أقدم جد' : ''}</span>
+      <div class="acts">${!isCrown || branching ? `<button class="btn btn-xs btn-outline" data-act="trunk-after" data-id="${id}" title="إضافة اسم بعده (فوقه في الجذع)">${icon('plus')}بعده</button>` : ''}
+        ${(isRoot && S.kidsOf(id).length === 1) || (!isRoot && !isCrown) ? `<button class="btn btn-xs btn-danger-soft" data-act="trunk-del" data-id="${id}" title="حذفه من السلسلة مع إبقاء ما بعده">${icon('trash')}</button>` : ''}</div>
+      <form class="tr-after" data-form="trunk-after" data-id="${id}" hidden><input name="name" placeholder="الاسم بعد «${esc(P(id).n)}»" required><button class="btn btn-xs btn-primary" type="submit">${icon('plus')}إضافة</button></form></li>`;
+  }).join('');
+  view().innerHTML = `<div class="grid-panels c2">
+    ${panel('سلسلة الأجداد', 'tree', `<div class="panel-body"><ol class="tr-list">${rows}</ol>
+      <form class="tr-add" data-form="trunk-before-root" data-id="${chain[0]}"><input name="name" placeholder="جد أقدم من «${esc(P(chain[0]).n)}» (يُضاف في القاع)" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة في القاع</button></form></div>`, '', 'من الأحدث (فوق) إلى الأقدم (القاع). «بعده» يضيف اسماً بينه وبين ما فوقه دون كسر السلسلة.')}
+    <div style="display:grid;gap:18px;align-content:start">
+      ${panel('كيف تظهر على الشجرة', 'eye', `<div class="panel-body">${preview}</div>`)}
+      ${panel('إضافة عدة أجداد دفعة واحدة', 'plus', `<form class="panel-body" data-form="trunk-bulk">
+        <label class="field"><span>الأسماء من الأقدم إلى الأحدث، كل اسم في سطر</span><textarea name="names" rows="6" placeholder="الفضل&#10;خضرو&#10;درباس&#10;مسعود" required></textarea></label>
+        <label class="field"><span>مكانها في السلسلة</span><select name="at">
+          ${chain.map((id) => `<option value="after:${id}" ${id === chain[0] ? 'selected' : ''}>بعد «${esc(P(id).n)}»${id === crown && branching ? ' (بينه وبين أبنائه)' : ''}</option>`).join('')}
+          <option value="below">في القاع (أقدم من «${esc(P(chain[0]).n)}»)</option></select></label>
+        <button class="btn btn-primary" type="submit">${icon('check')}إضافة</button></form>`)}
+    </div></div>`;
+};
+
 /* ───────────── البيوت ───────────── */
 PAGES.houses = async (edit) => {
   setTitle('البيوت', 'house');
@@ -678,6 +726,35 @@ document.addEventListener('submit', async (e) => {
       if (nid) route();
       return;
     }
+    if (kind === 'trunk-rename') {
+      if (val('name') && App.Names.clean(val('name')) !== P(id).n && await run(() => S.updatePerson(id, { name: val('name') }), 'تم تعديل الاسم')) route();
+      return;
+    }
+    if (kind === 'trunk-after') {
+      if (await run(() => S.insertChild(id, val('name')), 'أُضيف إلى الجذع')) route();
+      return;
+    }
+    if (kind === 'trunk-before-root') {
+      if (await run(() => S.addAncestor(id, val('name')), 'أُضيف في القاع')) route();
+      return;
+    }
+    if (kind === 'trunk-bulk') {
+      const list = val('names').split(/
++/).map((x) => App.Names.clean(x)).filter(Boolean);
+      if (!list.length) return toast('اكتب اسماً واحداً على الأقل', 'err');
+      const at = val('at');
+      await run(async () => {
+        if (at === 'below') {
+          // الأحدث يصير أبا الجد الحالي، ثم الأقدم تحته
+          let top = trunkChain()[0];
+          for (const nm of list.slice().reverse()) top = await S.addAncestor(top, nm);
+        } else {
+          let cur = +at.split(':')[1];
+          for (const nm of list) cur = await S.insertChild(cur, nm);
+        }
+      }, `أُضيف ${S.arCount(list.length, 'اسم واحد', 'اسمان', 'أسماء', 'اسماً')} إلى الجذع`);
+      return route();
+    }
     if (kind === 'insert-child') {
       const nid = await run(() => S.insertChild(id, val('name')), 'أُضيف الاسم في السلسلة');
       if (nid) route();
@@ -781,6 +858,17 @@ document.addEventListener('click', async (e) => {
   if (act === 'confirm-link') { if (await run(() => S.movePerson(id, +b.dataset.parent), 'تم تأكيد الربط')) route(); }
   if (act === 'make-house') { if (await run(() => S.setHouseMode(id, 'on'), 'أصبح بيتاً')) route(); }
   if (act === 'unhouse') { if (await App.confirm({ title: 'إلغاء البيت', text: `«${S.houseName(id)}» لن يبقى بيتاً، ولن يُحذف أي فرد. يمكنك إرجاعه لاحقاً.`, ok: 'إلغاء البيت' }) && await run(() => S.setHouseMode(id, 'off'), 'أُلغي البيت')) route(); }
+  if (act === 'trunk-after') {
+    const f = b.closest('li').querySelector('.tr-after');
+    f.hidden = !f.hidden;
+    if (!f.hidden) f.querySelector('input').focus();
+    return;
+  }
+  if (act === 'trunk-del') {
+    if (!(await App.confirm({ title: `حذف «${P(id).n}» من السلسلة`, text: 'يُحذف هو وحده، ويرتبط ما بعده بما قبله. يمكن التراجع من سجل العمليات.', danger: true, ok: 'حذف' }))) return;
+    if (await run(() => S.removeKeepKids(id), 'تم الحذف')) route();
+    return;
+  }
   if (act === 'unlink') {
     if (!(await App.confirm({ title: 'حذف وربط الأبناء', text: 'يمكن التراجع من سجل العمليات.', danger: true, ok: 'حذف' }))) return;
     const par = P(id).p;

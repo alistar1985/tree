@@ -2,7 +2,7 @@
    تهيئة الصفحات العامة: عنوان الموقع، أدوات الرأس، نافذة الرمز، وضع الصيانة، وتسجيل الزيارة.
    ========================================================================== */
 /* global App */
-import { ready, state, trackVisit, watchRev } from './store.js?v=14';
+import { ready, state, trackVisit, watchRev } from './store.js?v=15';
 
 const { esc, icon } = App;
 const page = document.body.dataset.page || 'tree';

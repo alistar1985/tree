@@ -94,6 +94,12 @@
     return Math.max(6.5, fs);
   }
 
+  /** نصف عرض الجذع عند ارتفاع y (للجذع الحامل للألواح): يتسع تدريجياً نحو القاع */
+  function trunkHalf(trunk, y) {
+    const t = Math.max(0, Math.min(1, y / trunk.len));
+    return trunk.w / 2 * (1 + 0.9 * t + 0.7 * t * t);
+  }
+
   function el(parent, tag, attrs) {
     const e = document.createElementNS(NS, tag);
     if (attrs) for (const k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
@@ -378,11 +384,12 @@
 
       // ألواح الأجداد على الجذع مثل اللوحة: الجذع يتسع لها، وتعرض كل لوحة بعرض الجذع عند موضعها
       if (mode === 'organic' && trunk && trunkNodes.length) {
-        trunk.w = Math.max(trunk.w, 78);
+        // الجذع مستقيم يتسع للأسفل: أقدم جد (في القاع) أكبر لوح، وكل من فوقه أصغر منه
+        trunk.w = Math.max(trunk.w, 84);
+        trunk.plaques = true;
         nodes.forEach((d) => {
           if (d.kind !== 'trunk') return;
-          const t = Math.max(0, (d.py / trunk.len - 0.4) / 0.6);
-          d.pw = Math.max(84, trunk.w * (1 + 2.1 * t * t) - 12);
+          d.pw = Math.max(80, trunkHalf(trunk, d.py) * 2 - 14);
         });
       }
 
@@ -443,7 +450,9 @@
       // الجذع
       if (mode === 'organic') {
         const W = trunk.w, Lt = trunk.len, base = W * 1.55;
-        const d = `M${-W / 2},-4C${-W / 2},${Lt * 0.45} ${-W * 0.62},${Lt * 0.8} ${-base},${Lt}L${base},${Lt}C${W * 0.62},${Lt * 0.8} ${W / 2},${Lt * 0.45} ${W / 2},-4Z`;
+        const d = trunk.plaques
+          ? (() => { const ys = d3.range(0, 25).map((i) => -4 + (Lt + 4) * i / 24); return 'M' + ys.map((y) => `${-trunkHalf(trunk, y).toFixed(1)},${y.toFixed(1)}`).join('L') + 'L' + ys.reverse().map((y) => `${trunkHalf(trunk, y).toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z'; })()
+          : `M${-W / 2},-4C${-W / 2},${Lt * 0.45} ${-W * 0.62},${Lt * 0.8} ${-base},${Lt}L${base},${Lt}C${W * 0.62},${Lt * 0.8} ${W / 2},${Lt * 0.45} ${W / 2},-4Z`;
         el(gD, 'ellipse', { cx: 0, cy: Lt + 4, rx: base * 2.6, ry: 9, fill: dark ? '#2a3a1c' : '#7fae4a', opacity: 0.55 });
         el(gD, 'path', { d, fill: branchColor });
         for (let i = -3; i <= 3; i++) {

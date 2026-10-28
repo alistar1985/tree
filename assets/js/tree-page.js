@@ -354,6 +354,19 @@
     openDrawer(id);
   }
 
+  /** بعد الإضافة: تبقى الشجرة كلها ظاهرة والشخص الجديد مضيء، ولا نقرّب عليه إلا إن كانت الشجرة كبيرة */
+  function arrive(id) {
+    const before = tree.rootId;
+    tree.reveal(id);
+    if (tree.rootId !== before) { state.root = tree.rootId; buildHouses(); }
+    tree.render({ keepView: true });
+    tree.fit(false);
+    tree.select(id);
+    if (tree.transform.k < 0.55) tree.centerOn(id, 0.9);
+    const n = tree.get(id);
+    if (n) toast(`«${n.name}» في الشجرة الآن — مضيء مع نسبه`);
+  }
+
   /* ───────────── درج التفاصيل ───────────── */
   function closeDrawer() {
     drawer.classList.remove('open');
@@ -805,7 +818,7 @@
   load(false).then(() => {
     if (dataDirty) load(true).catch(() => {});
     const focus = params.get('focus') ? +params.get('focus') : null;
-    if (focus && tree.get(focus)) setTimeout(() => focusPerson(focus, 1.1), 80);
+    if (focus && tree.get(focus)) setTimeout(() => arrive(focus), 80);
     else if (params.get('pending') && viewer.perms && viewer.perms.approve) openPending();
   }).catch((x) => {
     $('#treeCanvas').innerHTML = `<div class="tree-loading"><div class="alert alert-danger">${icon('alert')}${esc(x.message)}</div></div>`;

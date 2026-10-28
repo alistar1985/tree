@@ -11,7 +11,7 @@ import {
 import {
   getDatabase, ref, get, update, push, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast, equalTo,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js?v=14';
+import { firebaseConfig } from './firebase-config.js?v=15';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -618,8 +618,8 @@ export async function removeKeepKids(id) {
   await loadPersons();
   const p = P(id);
   if (!p) throw err('الشخص غير موجود');
-  if (p.p == null || !P(p.p)) throw err('هذا أعلى جد في الشجرة؛ لا يوجد أب يرتبط به أبناؤه');
   if (!can('delete', id)) throw err('لا تملك صلاحية الحذف هنا');
+  if (p.p == null || !P(p.p)) return removeRoot(id);
   const kids = kidsOf(id), par = P(p.p);
   const clash = kids.filter((k) => kidsOf(par.id).some((x) => x !== +id && P(x).k === P(k).k));
   if (clash.length) throw err(`لا يمكن الربط: «${par.n}» عنده ابن باسم ${clash.map((k) => '«' + P(k).n + '»').join('، ')} — ادمجهما أولاً`);
@@ -633,6 +633,24 @@ export async function removeKeepKids(id) {
   order.forEach((x, i) => { u[`persons/${x}/o`] = i + 1; });
   u['persons/' + id] = null;
   auditEntry(u, a, 'delete', 'person', +id, `حذف «${nasab(id, 3)}» من السلسلة` + (kids.length ? ` وربط أبناءه (${kids.map((k) => P(k).n).join('، ')}) بـ «${par.n}»` : ''), { batch: tk, count: 1 });
+  await commit(u);
+}
+
+/** حذف أعلى جد إذا كان له ابن واحد: يصير ابنه هو أعلى جد */
+async function removeRoot(id) {
+  const p = P(id), kids = kidsOf(id);
+  if (kids.length !== 1) throw err('أعلى جد له أكثر من ابن (أو لا أبناء له)؛ لا يمكن حذفه وحده');
+  const k = kids[0];
+  const a = actor();
+  const u = {};
+  const tk = pushId();
+  u['trash/' + tk] = { kind: 'unlink', at: TS(), by: a.l, root: +id, persons: trashOf([+id]), kids: [k] };
+  const oldPrefix = p.path + id + '/';
+  u[`persons/${k}/p`] = null;
+  u[`persons/${k}/path`] = '/';
+  descendants(k).forEach((d) => { u[`persons/${d}/path`] = '/' + P(d).path.slice(oldPrefix.length); });
+  u['persons/' + id] = null;
+  auditEntry(u, a, 'delete', 'person', +id, `حذف الجد «${p.n}» فصار «${P(k).n}» أعلى جد`, { batch: tk, count: 1 });
   await commit(u);
 }
 
