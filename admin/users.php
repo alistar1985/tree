@@ -59,6 +59,9 @@ if (admin_post()) {
 $admins = $owner ? db_all('SELECT * FROM admins ORDER BY id') : [];
 admin_head($owner ? 'المشرفون' : 'حسابي', 'users', ['icon' => 'shield']);
 ?>
+<?php if ($owner): ?>
+<div class="alert alert-info"><?= icon('key') ?><span>لوحة التحكم خاصة بك. لتعطي شخصاً صلاحية الإشراف دون دخول لوحة التحكم، أنشئ له <a href="<?= e(url('admin/codes.php?type=supervisor')) ?>"><b>رمز مشرف</b></a>: يدخله من أيقونة المفتاح في الموقع فيضيف ويعدّل ويعتمد الطلبات مباشرة. حسابات هذه الصفحة للضرورة فقط.</span></div>
+<?php endif; ?>
 <div class="grid-panels <?= $owner ? 'c2' : '' ?>">
   <?php if ($owner): ?>
   <section class="panel">

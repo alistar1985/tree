@@ -138,7 +138,7 @@ function admin_head(string $title, string $active, array $opt = []): void
         ['', 'الشجرة'],
         ['people', 'الأفراد', 'users', 'people'],
         ['houses', 'البيوت', 'house', 'houses'],
-        ['codes', 'رموز البيوت', 'key', 'codes'],
+        ['codes', 'رموز الصلاحية', 'key', 'codes'],
         ['', 'المتابعة'],
         ['log', 'سجل العمليات', 'history', 'log'],
         ['visitors', 'الزوار والأجهزة', 'eye', 'visitors'],

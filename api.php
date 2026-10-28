@@ -41,10 +41,21 @@ function viewer_info(): array
         $v['perms'] = ['add' => true, 'edit' => true, 'delete' => true, 'approve' => true, 'merge' => true];
     } elseif ($c) {
         $v['scope'] = $c['scope_person_id'] !== null ? (int)$c['scope_person_id'] : null;
-        $v['perms'] = ['add' => (bool)$c['can_add'], 'edit' => (bool)$c['can_edit'], 'delete' => (bool)$c['can_delete'], 'approve' => (bool)$c['can_approve'], 'merge' => false];
+        $v['perms'] = ['add' => (bool)$c['can_add'], 'edit' => (bool)$c['can_edit'], 'delete' => (bool)$c['can_delete'], 'approve' => (bool)$c['can_approve'],
+            'merge' => (bool)$c['can_delete'] && (bool)$c['can_edit']];
         $v['holder'] = $c['holder_name'];
     }
+    if (!empty($v['perms']['approve'])) {
+        $v['pending'] = count(reviewable_submissions());
+    }
     return $v;
+}
+
+/** الطلبات المعلقة التي يستطيع المستخدم الحالي اعتمادها (المشرف: كلها، صاحب الرمز: ضمن نطاقه) */
+function reviewable_submissions(): array
+{
+    return array_values(array_filter(db_all("SELECT * FROM submissions WHERE status = 'pending' ORDER BY id DESC LIMIT 300"),
+        fn($s) => can_approve_submission($s) && $s['anchor_id'] !== null));
 }
 
 try {
@@ -196,7 +207,7 @@ try {
                     'reorder' => can_on_person('reorder', $id) && $p['parent_id'] !== null,
                     'delete' => can_on_person('delete', $id),
                     'approve' => $sub && $sub['status'] === 'pending' && can_approve_submission(db_one('SELECT * FROM submissions WHERE id = ?', [(int)$sub['id']])),
-                    'merge' => (bool)current_admin(),
+                    'merge' => can_on_person('delete', $id) && can_on_person('edit', $id),
                     'head' => (bool)current_admin() || (current_code() && can_on_person('edit', $id)),
                 ],
             ];
@@ -240,9 +251,33 @@ try {
 
         case 'person_merge': {
             need_post();
-            if (!current_admin()) fail('الدمج متاح للمشرفين فقط', 403);
-            person_merge((int)($in['id'] ?? 0), (int)($in['target_id'] ?? 0), actor());
+            $id = (int)($in['id'] ?? 0);
+            $target = (int)($in['target_id'] ?? 0);
+            if (!can_on_person('delete', $id) || !can_on_person('edit', $target)) fail('لا تملك صلاحية الدمج هنا', 403);
+            person_merge($id, $target, actor());
             json_out(['ok' => true]);
+        }
+
+        case 'pending': {
+            $c = current_code();
+            if (!current_admin() && !($c && (int)$c['can_approve'])) fail('لا تملك صلاحية مراجعة الطلبات', 403);
+            $map = people_map(true);
+            $items = [];
+            foreach (reviewable_submissions() as $s) {
+                $persons = db_all("SELECT id, name, parent_id, name_key FROM persons WHERE submission_id = ? AND status = 'pending' AND deleted_at IS NULL ORDER BY id", [(int)$s['id']]);
+                $dups = [];
+                foreach ($persons as $p) {
+                    if (sibling_with_key($p['parent_id'] !== null ? (int)$p['parent_id'] : null, $p['name_key'], (int)$p['id'], true)) $dups[] = $p['name'];
+                }
+                $items[] = [
+                    'id' => (int)$s['id'], 'names' => json_decode($s['chain_json'], true) ?: [],
+                    'anchor' => isset($map[(int)$s['anchor_id']]) ? nasab((int)$s['anchor_id'], $map, 6) : null,
+                    'new' => array_column($persons, 'name'), 'dups' => $dups,
+                    'self_id' => $s['self_person_id'] ? (int)$s['self_person_id'] : null,
+                    'phone' => $s['phone'], 'note' => $s['note'], 'ago' => time_ago($s['created_at']), 'device' => $s['device'],
+                ];
+            }
+            json_out(['ok' => true, 'items' => $items]);
         }
 
         case 'person_delete': {

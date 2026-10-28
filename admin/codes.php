@@ -1,6 +1,6 @@
 <?php
 /**
- * رموز البيوت: لكل بيت رمز يمنحه صلاحية الإضافة/التعديل ضمن نطاقه، مع تتبع كامل للاستخدام.
+ * رموز الصلاحية: رمز بيت لرأس البيت ضمن نطاقه، أو رمز مشرف للشجرة كاملة دون لوحة التحكم، مع تتبع كامل للاستخدام.
  */
 require __DIR__ . '/_layout.php';
 admin_require('codes');
@@ -20,12 +20,15 @@ if (admin_post()) {
         if ($act === 'create' || $act === 'update') {
             $holder = trim((string)$_POST['holder_name']);
             if ($holder === '') throw new InvalidArgumentException('اسم صاحب الرمز مطلوب');
-            $scope = ($_POST['scope_person'] ?? '') !== '' ? (int)$_POST['scope_person'] : (($_POST['scope_house'] ?? '') !== '' ? (int)$_POST['scope_house'] : null);
+            // رمز المشرف: الشجرة كاملة وكل الصلاحيات، بدون حساب في لوحة التحكم
+            $supervisor = ($_POST['code_type'] ?? '') === 'supervisor';
+            $scope = $supervisor ? null : (($_POST['scope_person'] ?? '') !== '' ? (int)$_POST['scope_person'] : (($_POST['scope_house'] ?? '') !== '' ? (int)$_POST['scope_house'] : null));
             if ($scope !== null && !person_row($scope)) throw new InvalidArgumentException('نطاق الرمز غير موجود');
             $exp = trim((string)($_POST['expires_at'] ?? ''));
+            $perm = fn($k) => $supervisor || isset($_POST[$k]) ? 1 : 0;
             $vals = [
                 $holder, preg_replace('/[^\d+]/', '', latin_digits((string)$_POST['holder_phone'])) ?: null, trim((string)$_POST['note']) ?: null, $scope,
-                isset($_POST['can_add']) ? 1 : 0, isset($_POST['can_edit']) ? 1 : 0, isset($_POST['can_delete']) ? 1 : 0, isset($_POST['can_approve']) ? 1 : 0,
+                $perm('can_add'), $perm('can_edit'), $perm('can_delete'), $perm('can_approve'),
                 ($_POST['max_additions'] ?? '') !== '' ? max(0, (int)$_POST['max_additions']) : null, $exp !== '' ? date('Y-m-d 23:59:59', strtotime($exp)) : null,
             ];
             if ($act === 'create') {
@@ -84,10 +87,10 @@ $scopeName = function ($sid) use ($map) {
     return (int)$map[$sid]['is_head'] ? ($map[$sid]['house_name'] ?: 'بيت ' . $map[$sid]['name']) : 'فرع ' . nasab($sid, $map, 3);
 };
 
-admin_head('رموز البيوت', 'codes', ['icon' => 'key']);
+admin_head('رموز الصلاحية', 'codes', ['icon' => 'key']);
 ?>
 <?php if ($newCode):
-    $msg = "السلام عليكم\nهذا رمز " . $scopeName($newCode['scope_person_id']) . ' في ' . setting('site_title') . ":\n" . $newCode['code']
+    $msg = "السلام عليكم\nهذا رمز صلاحيتك " . ($newCode['scope_person_id'] === null ? '(مشرف على الشجرة كاملة)' : '(' . $scopeName($newCode['scope_person_id']) . ')') . ' في ' . setting('site_title') . ":\n" . $newCode['code']
         . "\n\nلإضافة الأسماء: افتح " . full_url('add.php') . "\nثم اضغط على أيقونة المفتاح 🔑 وأدخل الرمز.\nكل إضافة تُسجَّل باسمك."; ?>
   <section class="panel" style="border-color:var(--primary)">
     <div class="panel-head"><div><h2><?= icon('check') ?>رمز «<?= e($newCode['holder_name']) ?>» جاهز</h2><p>أرسله لصاحبه فقط. لا يُعرض لأي شخص آخر.</p></div></div>
@@ -107,6 +110,12 @@ admin_head('رموز البيوت', 'codes', ['icon' => 'key']);
     <p>يُمنح الرمز عادة لرأس البيت؛ يستطيع به إضافة أبناء البيت وتعديلهم فقط ضمن نطاقه، وتُنشر إضافاته مباشرة<?= setting('code_auto_approve') === '1' ? '' : ' بعد المراجعة' ?>.</p></div></div>
   <form method="post" class="panel-body form-grid">
     <?= csrf_field() ?><input type="hidden" name="act" value="<?= $edit ? 'update' : 'create' ?>"><?php if ($edit): ?><input type="hidden" name="id" value="<?= (int)$edit['id'] ?>"><?php endif; ?>
+    <?php $isSup = $edit ? ($edit['scope_person_id'] === null && (int)$edit['can_approve'] && (int)$edit['can_delete']) : (($_GET['type'] ?? '') === 'supervisor'); ?>
+    <div class="field full"><span>نوع الرمز</span>
+      <div class="radio-cards" style="margin:0">
+        <label class="radio-card"><input type="radio" name="code_type" value="house" <?= $isSup ? '' : 'checked' ?>><span><b><?= icon('house') ?> رمز بيت</b><small>لرأس البيت: يضيف أفراد بيته ويعدّلهم فقط، حسب الصلاحيات التي تختارها.</small></span></label>
+        <label class="radio-card"><input type="radio" name="code_type" value="supervisor" <?= $isSup ? 'checked' : '' ?>><span><b><?= icon('shield') ?> رمز مشرف</b><small>للمشرفين دون لوحة تحكم: يدخل الرمز من أيقونة المفتاح في الموقع فيضيف ويعدّل ويحذف ويعتمد الطلبات في الشجرة كاملة.</small></span></label>
+      </div></div>
     <label class="field"><span>اسم صاحب الرمز</span><input name="holder_name" value="<?= e($edit['holder_name'] ?? '') ?>" placeholder="مثال: أبو علي — جعفر محمد" required></label>
     <label class="field"><span>هاتفه (لإرسال الرمز عبر واتساب)</span><input name="holder_phone" dir="ltr" inputmode="tel" value="<?= e($edit['holder_phone'] ?? '') ?>" placeholder="07xxxxxxxxx"></label>
     <label class="field"><span>نطاق الرمز (البيت)</span>
@@ -138,7 +147,7 @@ admin_head('رموز البيوت', 'codes', ['icon' => 'key']);
         $usable = code_is_usable($c);
         $cid = (int)$c['id']; ?>
       <tr>
-        <td class="nm"><b><?= e($c['holder_name']) ?></b><small><?= e($c['holder_phone'] ?: '') ?><?= $c['note'] ? ' · ' . e($c['note']) : '' ?></small></td>
+        <td class="nm"><b><?= e($c['holder_name']) ?><?= $c['scope_person_id'] === null && (int)$c['can_approve'] ? ' <span class="badge badge-info">مشرف</span>' : '' ?></b><small><?= e($c['holder_phone'] ?: '') ?><?= $c['note'] ? ' · ' . e($c['note']) : '' ?></small></td>
         <td><span class="code-mask" data-reveal="<?= e($c['code']) ?>">••••-<?= e(substr($c['code'], -4)) ?></span> <button class="btn btn-xs btn-ghost" type="button" data-copy="<?= e($c['code']) ?>" title="نسخ"><?= icon('copy') ?></button></td>
         <td><small><?= e($scopeName($c['scope_person_id'])) ?></small></td>
         <td><div class="perm-badges">

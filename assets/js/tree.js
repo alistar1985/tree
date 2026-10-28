@@ -204,6 +204,15 @@
           n.houseNode = n;
         } else n.houseNode = n.parent ? n.parent.houseNode : null;
       });
+      // الفروع التلقائية: أبناء الجد الجامع (أول جد له أكثر من ابن) هم رؤوس الفروع،
+      // ويتبع كل شخص فرعه حسب نسبه حتى لو لم تُحدَّد بيوت يدوياً
+      let crown = top;
+      while (crown.kids.length === 1) crown = crown.kids[0];
+      let bi = 0;
+      crown.kids.forEach((k) => { k.bc = k.hc || HOUSE_PALETTE[bi++ % HOUSE_PALETTE.length]; });
+      order.forEach((n) => { n.branch = n.parent === crown ? n : (n.parent && n.parent.branch) || null; });
+      this.autoCrown = crown;
+      this.hasHouses = order.some((n) => n.house);
       this.by = by;
       this.top = top;
       this.order = order;
@@ -507,9 +516,12 @@
         if (hasHead) lg.push({ type: 'circle', color: C.head, label: 'رؤوس البيوت' });
         lg.push({ type: 'circle', color: C.son, label: 'الأبناء' });
         if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: 'الأحفاد (الأوراق)' });
-      } else {
+      } else if (this.hasHouses) {
         [...housesInView.values()].slice(0, 14).forEach((hn) => lg.push({ type: 'circle', color: hn.hc, label: hn.house }));
         lg.push({ type: 'circle', color: C.son, label: 'خارج البيوت' });
+      } else {
+        const seen = new Set();
+        nodes.forEach((d) => { const b = d.data.n.branch; if (b && !seen.has(b)) { seen.add(b); lg.push({ type: 'circle', color: b.bc, label: 'فرع ' + b.name }); } });
       }
       if (hasPending) lg.push({ type: 'pending', color: '#ffffff', label: 'بانتظار المراجعة', wide: true });
       if (hasCollapsed) lg.push({ type: 'badge', color: '#3b2314', label: 'فرع مطويّ (اضغط للتوسيع)', wide: true });
@@ -531,7 +543,7 @@
       if (d.kind === 'trunk') return C.trunk;
       if (d.kind === 'crown') return C.root;
       if (m === 'house') {
-        const hc = n.houseNode ? n.houseNode.hc : null;
+        const hc = n.houseNode ? n.houseNode.hc : (!this.hasHouses && n.branch ? n.branch.bc : null);
         if (d.kind === 'leaf') return hc ? mix(hc, C.leaf, 0.35) : C.leaf;
         return hc || C.son;
       }
@@ -644,7 +656,7 @@
     /* ── التلميح ── */
     _showTip(n, e) {
       if (!this.tip) return;
-      const house = n.houseNode ? n.houseNode.house : '';
+      const house = n.houseNode ? n.houseNode.house : (n.branch && n.branch !== n ? 'فرع ' + n.branch.name : '');
       const parts = [`<b>${esc(n.name)}${n.nick ? ' <span>(' + esc(n.nick) + ')</span>' : ''}</b>`, `<span>${esc(this.nasab(n, 7))}</span>`];
       const meta = [];
       if (!n.virtual) meta.push(genName(n.gen) + ' في العشيرة');

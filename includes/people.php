@@ -112,6 +112,19 @@ function house_of(int $id, array $map): ?int
     return null;
 }
 
+/** الجد الجامع: أول جد من الأعلى له أكثر من ابن — أبناؤه هم رؤوس الفروع التلقائية */
+function auto_crown_id(array $map, array $kids): ?int
+{
+    $roots = array_keys(array_filter($map, fn($p) => $p['parent_id'] === null));
+    if (count($roots) !== 1) return null;
+    $c = $roots[0];
+    $guard = 0;
+    while (count($kids[$c] ?? []) === 1 && $guard++ < 300) {
+        $c = $kids[$c][0];
+    }
+    return $c;
+}
+
 /** جيل كل شخص (الجذر = 1) بحساب واحد للشجرة كلها */
 function depth_map(array $map): array
 {

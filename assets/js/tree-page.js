@@ -67,12 +67,36 @@
         <span class="dot"></span><span><b>${esc(h.house)}</b><small>${esc(tree.nasab(h, 4))}</small></span><span class="cnt">${h.desc + 1}</span></button>`
       + (kids.has(h.id) ? `<div class="side-sub">${kids.get(h.id).map(item).join('')}</div>` : '');
     const total = tree.order.filter((n) => !n.virtual).length;
+    const crown = tree.autoCrown;
+    const branches = crown ? crown.kids.filter((k) => k.kids.length) : [];
     $('#houseList').innerHTML = `<button type="button" class="side-item ${!state.root ? 'on' : ''}" data-root="" style="--hc:#2f5d1e">
         <span class="dot"></span><span><b>الشجرة كاملة</b><small>${esc(CFG.clan || '')}</small></span><span class="cnt">${total}</span></button>`
-      + (hs.length ? tops.map(item).join('') : '<div class="sr-empty">لم تُحدَّد بيوت بعد</div>');
+      + (hs.length ? `<div class="side-sec">${icon('crown')}البيوت</div>` + tops.map(item).join('') : '')
+      + (branches.length ? `<div class="side-sec">${icon('branch')}فروع الشجرة <small>تلقائياً من ${esc(crown.name)}</small></div>` + branches.map(branchItem).join('') : '')
+      + (!hs.length && !branches.length ? '<div class="sr-empty">أضف أبناء الجد ليتفرع منهم كل نسب تلقائياً</div>' : '');
+  }
+
+  // عنصر فرع تلقائي: يُفتح ليُظهر فروعه (أبناؤه الذين لهم ذرية)
+  function branchItem(n) {
+    const sub = n.kids.some((k) => k.kids.length);
+    const color = (n.branch && n.branch.bc) || '#8a6442';
+    return `<div class="side-row">
+        ${sub ? `<button type="button" class="br-tog" data-tog="${n.id}" title="فروعه">${icon('chev-l')}</button>` : '<span class="br-tog"></span>'}
+        <button type="button" class="side-item ${state.root === n.id ? 'on' : ''}" data-root="${n.id}" style="--hc:${esc(color)}">
+          <span class="dot"></span><span><b>${esc(n.house || n.name)}</b><small>${esc(tree.nasab(n, 3))}</small></span><span class="cnt">${n.desc + 1}</span></button>
+      </div><div class="side-sub" data-sub="${n.id}" hidden></div>`;
   }
 
   $('#houseList').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-tog]');
+    if (t) {
+      const box = $(`[data-sub="${t.dataset.tog}"]`, $('#houseList'));
+      const open = box.hidden;
+      if (open && !box.innerHTML) box.innerHTML = tree.get(+t.dataset.tog).kids.filter((k) => k.kids.length).map(branchItem).join('');
+      box.hidden = !open;
+      t.innerHTML = icon(open ? 'chev-d' : 'chev-l');
+      return;
+    }
     const b = e.target.closest('[data-root]');
     if (!b) return;
     setRoot(b.dataset.root ? +b.dataset.root : null);
@@ -80,7 +104,10 @@
   });
   $('#houseFilter').addEventListener('input', (e) => {
     const q = Names.key(e.target.value);
-    $$('#houseList .side-item').forEach((b) => { b.hidden = q && !Names.key(b.textContent).includes(q); });
+    if (!q) return buildHouses();
+    // بحث في البيوت وفي كل الفروع (كل شخص له ذرية)
+    const hits = tree.order.filter((n) => !n.virtual && n.kids.length && Names.key(n.house || n.name).includes(q)).slice(0, 40);
+    $('#houseList').innerHTML = hits.length ? hits.map(branchItem).join('') : '<div class="sr-empty">لا توجد نتائج</div>';
   });
   $('#sideToggle').addEventListener('click', () => {
     if (window.innerWidth < 980) $('#treeSide').classList.toggle('open');
@@ -192,11 +219,58 @@
       const s = viewer.scope != null ? tree.get(viewer.scope) : null;
       scope = s ? ' — ضمن ' + (s.house || 'فرع ' + s.name) : ' — الشجرة كاملة';
     }
-    b.innerHTML = `${icon(viewer.type === 'admin' ? 'shield' : 'key')}<span>${viewer.type === 'admin' ? 'وضع المشرف: اضغط على أي اسم لتعديله' : 'وضع التحرير برمز ' + esc(viewer.holder || '') + esc(scope)}</span>`
+    b.innerHTML = `${icon(viewer.type === 'admin' ? 'shield' : 'key')}<span>${viewer.type === 'admin' ? 'وضع المالك: اضغط على أي اسم لتعديله' : 'وضع التحرير برمز ' + esc(viewer.holder || '') + esc(scope)}</span>`
+      + (viewer.perms && viewer.perms.approve ? `<button class="btn btn-xs btn-gold" type="button" data-pending>${icon('inbox')}الطلبات (${viewer.pending || 0})</button>` : '')
       + (viewer.type === 'code' && viewer.scope ? `<button class="btn btn-xs btn-outline" type="button" data-my-house>شجرة بيتي</button>` : '');
     b.hidden = false;
   }
-  $('#editBanner').addEventListener('click', (e) => { if (e.target.closest('[data-my-house]')) setRoot(viewer.scope); });
+  $('#editBanner').addEventListener('click', (e) => {
+    if (e.target.closest('[data-my-house]')) setRoot(viewer.scope);
+    if (e.target.closest('[data-pending]')) openPending();
+  });
+
+  /* ───────────── مراجعة الطلبات لأصحاب رموز المشرفين ───────────── */
+  async function openPending() {
+    state.sel = null;
+    tree.select(null);
+    drawer.innerHTML = `<div class="drawer-head"><button class="icon-btn" type="button" data-close title="إغلاق">${icon('x')}</button>
+      <div class="person-hero"><div class="person-avatar" style="background:var(--gold-100);color:var(--gold-700)">${icon('inbox')}</div>
+      <div><h2>طلبات بانتظار المراجعة</h2><div class="sub">اعتمد الصحيح منها ليظهر في الشجرة للجميع</div></div></div></div>
+      <div class="drawer-body" id="pendingBody"><div class="tree-loading" style="position:static;padding:40px 0"><div class="spinner"></div></div></div>`;
+    drawer.classList.add('open');
+    try {
+      const r = await api('pending', undefined, 'GET');
+      const body = $('#pendingBody');
+      if (!r.items.length) { body.innerHTML = `<div class="empty" style="padding:40px 0;text-align:center;color:var(--muted)">${icon('check')}<br>لا توجد طلبات بانتظارك</div>`; return; }
+      body.innerHTML = r.items.map((s) => `<div class="inline-form" style="margin:0 0 12px">
+          <b>${esc(s.names.join(' '))}</b>
+          <div class="muted" style="font-size:.84rem;margin:4px 0">تحت: ${esc(s.anchor || '—')}</div>
+          ${s.new.length ? `<div class="kids" style="margin:6px 0">${s.new.map((n) => `<span class="badge badge-gold">${icon('plus')}${esc(n)}</span>`).join('')}</div>` : ''}
+          ${s.dups.length ? `<div class="sub-warn" style="font-size:.82rem;color:var(--warn)">${icon('merge')} موجود مسبقاً وسيُدمج تلقائياً: ${esc(s.dups.join('، '))}</div>` : ''}
+          ${s.note ? `<div class="muted" style="font-size:.84rem">${icon('info')} ${esc(s.note)}</div>` : ''}
+          <div class="muted" style="font-size:.78rem;margin:6px 0">${esc(s.ago)}${s.phone ? ' · <span dir="ltr">' + esc(s.phone) + '</span>' : ''} · ${esc(s.device || '')}</div>
+          <div class="row" style="flex-wrap:wrap">
+            <button class="btn btn-xs btn-ok-soft" type="button" data-sub-approve="${s.id}">${icon('check')}اعتماد</button>
+            <button class="btn btn-xs btn-danger-soft" type="button" data-sub-reject="${s.id}">${icon('x')}رفض</button>
+            ${s.self_id ? `<button class="btn btn-xs btn-ghost" type="button" data-focus="${s.self_id}">${icon('tree')}عرض في الشجرة</button>` : ''}
+          </div></div>`).join('');
+    } catch (x) {
+      $('#pendingBody').innerHTML = `<div class="alert alert-danger">${icon('alert')}${esc(x.message)}</div>`;
+    }
+  }
+  drawer.addEventListener('click', async (e) => {
+    const ap = e.target.closest('[data-sub-approve]'), rj = e.target.closest('[data-sub-reject]');
+    if (!ap && !rj) return;
+    e.stopPropagation();
+    const id = +(ap || rj).dataset[ap ? 'subApprove' : 'subReject'];
+    if (rj && !(await App.confirm({ title: 'رفض الطلب', text: 'سيتم حذف أسماء هذا الطلب.', danger: true, ok: 'رفض' }))) return;
+    try {
+      const r = await api(ap ? 'submission_approve' : 'submission_reject', { submission_id: id });
+      toast(ap ? 'تم الاعتماد' + (r.merged && r.merged.length ? ' (دُمج: ' + r.merged.join('، ') + ')' : '') : 'تم الرفض');
+      await load(true);
+      openPending();
+    } catch (x) { toast(x.message, 'err'); }
+  }, true);
 
   /* ───────────── البحث داخل الشجرة ───────────── */
   function searchLocal(q, limit) {
@@ -281,6 +355,7 @@
     const tags = [];
     if (n.house) tags.push(`<span class="badge badge-gold">${icon('crown')}${esc(n.house)}</span>`);
     else if (n.houseNode) tags.push(`<span class="badge">${icon('house')}${esc(n.houseNode.house)}</span>`);
+    else if (n.branch && n.branch !== n) tags.push(`<span class="badge">${icon('branch')}فرع ${esc(n.branch.name)}</span>`);
     if (n.dead) tags.push('<span class="badge badge-muted">رحمه الله</span>');
     if (n.pending) tags.push('<span class="badge badge-warn">' + icon('clock') + 'بانتظار المراجعة</span>');
     if (p && p.birth_year) tags.push(`<span class="badge">مواليد ${esc(p.birth_year)}${p.death_year ? ' – ' + esc(p.death_year) : ''}</span>`);
@@ -560,6 +635,7 @@
 
   load(false).then(() => {
     if (CFG.focus && tree.get(CFG.focus)) setTimeout(() => focusPerson(CFG.focus, 1.1), 80);
+    else if (params.get('pending') && viewer.perms && viewer.perms.approve) openPending();
   }).catch((x) => {
     $('#treeCanvas').innerHTML = `<div class="tree-loading"><div class="alert alert-danger">${icon('alert')}${esc(x.message)}</div></div>`;
   });

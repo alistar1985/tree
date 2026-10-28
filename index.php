@@ -11,21 +11,28 @@ $map = people_map();
 $kids = children_index($map);
 $dm = depth_map($map);
 
-$houses = [];
-foreach ($map as $id => $p) {
-    if (!(int)$p['is_head']) continue;
+$houseCard = function (int $id, string $name) use ($map, $kids, $dm) {
     $desc = descendant_ids($id, $kids);
     $depth = 0;
-    $base = $dm[$id];
     foreach ($desc as $d) {
-        $depth = max($depth, $dm[$d] - $base);
+        $depth = max($depth, $dm[$d] - $dm[$id]);
     }
-    $houses[] = [
-        'id' => $id, 'name' => $p['house_name'] ?: 'بيت ' . $p['name'], 'color' => $p['house_color'],
-        'nasab' => nasab($id, $map, 4), 'members' => count($desc) + 1, 'gens' => $depth + 1, 'gen' => $base,
-    ];
+    return ['id' => $id, 'name' => $name, 'color' => $map[$id]['house_color'], 'nasab' => nasab($id, $map, 4),
+        'members' => count($desc) + 1, 'gens' => $depth + 1, 'gen' => $dm[$id]];
+};
+$houses = [];
+foreach ($map as $id => $p) {
+    if ((int)$p['is_head']) $houses[] = $houseCard($id, $p['house_name'] ?: 'بيت ' . $p['name']);
 }
 usort($houses, fn($a, $b) => $a['gen'] <=> $b['gen'] ?: $b['members'] <=> $a['members']);
+// بدون بيوت محددة: الفروع التلقائية هي أبناء الجد الجامع الذين لهم ذرية
+$crownId = auto_crown_id($map, $kids);
+$autoBranches = !$houses && $crownId !== null;
+if ($autoBranches) {
+    foreach ($kids[$crownId] ?? [] as $c) {
+        if (!empty($kids[$c])) $houses[] = $houseCard($c, 'فرع ' . $map[$c]['name']);
+    }
+}
 $palette = ['#c0392b', '#2e86c1', '#d68910', '#8e44ad', '#16a085', '#a04000', '#1f618d', '#b7950b', '#7d3c98', '#138d75', '#cb4335', '#2874a6'];
 
 $roots = array_values(array_filter($map, fn($p) => $p['parent_id'] === null));
@@ -87,7 +94,7 @@ page_head('', 'home', ['visit' => $visit]);
 <section class="section" id="houses">
   <div class="wrap">
     <div class="section-head">
-      <div><h2>بيوت العشيرة</h2><p>اختر بيتاً لعرض شجرته الخاصة بشكل أكبر وأوضح.</p></div>
+      <div><h2><?= $autoBranches ? 'فروع العشيرة' : 'بيوت العشيرة' ?></h2><p><?= $autoBranches ? 'تتفرع تلقائياً من الجد «' . e($map[$crownId]['name']) . '» حسب الأنساب. اختر فرعاً لعرض شجرته.' : 'اختر بيتاً لعرض شجرته الخاصة بشكل أكبر وأوضح.' ?></p></div>
       <a class="btn btn-outline" href="<?= e(url('tree.php')) ?>"><?= icon('tree') ?>الشجرة الكاملة</a>
     </div>
     <?php if ($houses): ?>
@@ -102,12 +109,12 @@ page_head('', 'home', ['visit' => $visit]);
               <span><?= icon('users') ?><?= number_format($h['members']) ?> فرداً</span>
               <span><?= icon('layers') ?><?= $h['gens'] ?> أجيال</span>
             </div>
-            <span class="house-go">عرض شجرة البيت <?= icon('arrow-l') ?></span>
+            <span class="house-go"><?= $autoBranches ? 'عرض شجرة الفرع' : 'عرض شجرة البيت' ?> <?= icon('arrow-l') ?></span>
           </a>
         <?php endforeach; ?>
       </div>
     <?php else: ?>
-      <div class="alert alert-info"><?= icon('info') ?>لم تُحدَّد بيوت بعد. يحدد المشرف رؤوس البيوت من لوحة التحكم.</div>
+      <div class="alert alert-info"><?= icon('info') ?>الشجرة في بدايتها. ستظهر هنا الفروع تلقائياً عند إضافة أبناء الجد وأحفاده.</div>
     <?php endif; ?>
   </div>
 </section>

@@ -90,9 +90,9 @@ function page_head(string $title, string $active = '', array $opt = []): void
       <?php if ($admin): ?>
         <a class="chip chip-admin" href="<?= e(url('admin/index.php')) ?>" title="لوحة التحكم"><?= icon('dashboard') ?><span>لوحة التحكم</span></a>
       <?php elseif ($code): ?>
-        <button class="chip chip-code" type="button" data-open="codeModal" title="أنت تعمل برمز بيت"><?= icon('key') ?><span><?= e($code['holder_name']) ?></span></button>
+        <button class="chip chip-code" type="button" data-open="codeModal" title="أنت تعمل برمز صلاحية"><?= icon('key') ?><span><?= e($code['holder_name']) ?></span></button>
       <?php else: ?>
-        <button class="icon-btn" type="button" data-open="codeModal" title="دخول برمز البيت"><?= icon('key') ?></button>
+        <button class="icon-btn" type="button" data-open="codeModal" title="دخول برمز الصلاحية"><?= icon('key') ?></button>
       <?php endif; ?>
       <button class="icon-btn" type="button" data-theme-toggle title="الوضع الليلي/النهاري"><?= icon('moon', 'only-light') ?><?= icon('sun', 'only-dark') ?></button>
       <button class="icon-btn nav-toggle" type="button" data-nav-toggle aria-controls="mainNav" title="القائمة"><?= icon('menu') ?></button>
@@ -116,7 +116,7 @@ function code_modal(): void
   <form class="modal-card" method="dialog" data-code-form>
     <header class="modal-head">
       <span class="modal-icon"><?= icon('key') ?></span>
-      <div><h3>رمز البيت</h3><p>لكل بيت رمز خاص يمنحه رأس البيت أو الإدارة، يتيح الإضافة والتعديل ضمن البيت.</p></div>
+      <div><h3>رمز الصلاحية</h3><p>رمز يمنحه مالك الشجرة لرؤساء البيوت والمشرفين، يتيح الإضافة والتعديل واعتماد الطلبات حسب صلاحياته.</p></div>
       <button class="icon-btn" value="cancel" formnovalidate title="إغلاق"><?= icon('x') ?></button>
     </header>
     <?php if ($code): ?>
@@ -131,7 +131,8 @@ function code_modal(): void
         </div>
       </div>
       <footer class="modal-foot">
-        <a class="btn btn-ghost" href="<?= e(url('tree.php' . ($code['scope_person_id'] ? '?root=' . (int)$code['scope_person_id'] : ''))) ?>"><?= icon('tree') ?>شجرة بيتي</a>
+        <?php if ((int)$code['can_approve']): ?><a class="btn btn-ghost" href="<?= e(url('tree.php?pending=1')) ?>"><?= icon('inbox') ?>الطلبات</a><?php endif; ?>
+        <a class="btn btn-ghost" href="<?= e(url('tree.php' . ($code['scope_person_id'] ? '?root=' . (int)$code['scope_person_id'] : ''))) ?>"><?= icon('tree') ?><?= $code['scope_person_id'] ? 'شجرة بيتي' : 'الشجرة' ?></a>
         <button class="btn btn-danger-soft" type="button" data-code-logout><?= icon('logout') ?>إنهاء الجلسة</button>
       </footer>
     <?php else: ?>
@@ -169,7 +170,6 @@ function page_foot(array $opt = []): void
       <a href="<?= e(url('tree.php')) ?>">الشجرة الكاملة</a>
       <a href="<?= e(url('add.php')) ?>">أضف نسبك</a>
       <a href="<?= e(url('index.php#how')) ?>">كيف تعمل الشجرة</a>
-      <a href="<?= e(url('admin/login.php')) ?>">لوحة التحكم</a>
     </nav>
   </div>
   <div class="wrap footer-copy">© <?= date('Y') ?> <?= e(setting('clan_name')) ?> — جميع الحقوق محفوظة</div>

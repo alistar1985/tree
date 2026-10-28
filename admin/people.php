@@ -11,7 +11,11 @@ if (admin_post()) {
     try {
         if ($act === 'add') {
             $parent = ($_POST['parent_id'] ?? '') !== '' ? (int)$_POST['parent_id'] : null;
-            if ($parent === null && people_map(true)) throw new InvalidArgumentException('اختر الأب من الشجرة');
+            if ($parent === null && people_map(true)) {
+                $roots = array_keys(array_filter(people_map(true), fn($p) => $p['parent_id'] === null));
+                if (count($roots) !== 1) throw new InvalidArgumentException('اختر الأب من الشجرة');
+                $parent = $roots[0]; // بدون اختيار: الأبناء تحت الجد الأكبر
+            }
             $names = array_filter(array_map('trim', preg_split('/[،,\n]+/u', (string)$_POST['names'])));
             $n = 0;
             foreach ($names as $nm) { person_add($parent, ['name' => $nm], actor()); $n++; }
@@ -203,7 +207,7 @@ admin_head('الأفراد', 'people', ['icon' => 'users', 'actions' => '<a clas
   <div class="panel-head"><div><h2><?= icon('user-plus') ?>إضافة أفراد</h2><p>اختر الأب ثم اكتب أسماء الأبناء مفصولة بفاصلة.</p></div></div>
   <form method="post" class="panel-body form-grid">
     <?= csrf_field() ?><input type="hidden" name="act" value="add">
-    <label class="field"><span>الأب</span><?= person_picker('parent_id', 'ابحث عن الأب…') ?></label>
+    <label class="field"><span>الأب</span><?= person_picker('parent_id', 'ابحث عن الأب…') ?><small>إن تركته فارغاً يُضاف الأبناء تحت الجد الأكبر.</small></label>
     <label class="field"><span>الأسماء</span><input name="names" placeholder="مثال: علي، حسن، محمد" required></label>
     <div class="full"><button class="btn btn-primary btn-sm" type="submit"><?= icon('plus') ?>إضافة</button></div>
   </form>

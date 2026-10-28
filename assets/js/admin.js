@@ -60,6 +60,17 @@
     if (side && side.classList.contains('open') && !e.target.closest('#aSide') && !e.target.closest('.a-menu-btn')) side.classList.remove('open');
   });
 
+  // رمز المشرف: الشجرة كاملة وكل الصلاحيات، فتُخفى حقول النطاق والصلاحيات
+  const syncCodeType = () => {
+    const sup = $('input[name=code_type][value=supervisor]');
+    if (!sup) return;
+    const on = sup.checked;
+    ['scope_house', 'scope_person'].forEach((n) => { const el = $(`[name=${n}]`); if (el) el.closest('.field').hidden = on; });
+    $$('input[name^=can_]').forEach((c) => { if (on) c.checked = true; c.disabled = on; });
+  };
+  document.addEventListener('change', (e) => { if (e.target.name === 'code_type') syncCodeType(); });
+  syncCodeType();
+
   // تلميح أعمدة الرسوم البيانية
   const tip = document.createElement('div');
   tip.className = 'chart-tip';
