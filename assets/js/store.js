@@ -11,7 +11,7 @@ import {
 import {
   getDatabase, ref, get, update, push, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast, equalTo,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js?v=16';
+import { firebaseConfig } from './firebase-config.js?v=17';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -793,13 +793,20 @@ export function matchChain(names, limit = 5) {
       const s0 = nameSim(p.k, keys[i]);
       if (s0 <= 0) continue;
       const matched = [{ id, idx: i, sim: s0 }];
-      let score = s0, j = i + 1, cur = id, conflict = null, upward = false;
+      let score = s0, j = i + 1, cur = id, conflict = null, upward = false, skips = 0;
       while (j < m) {
         if (P(cur).fl) { upward = true; break; } // فرع غير مربوط: الأسماء الأقدم أجداده
         const a = P(cur).p;
         if (a == null || !P(a)) break;
         const s = nameSim(P(a).k, keys[j]);
-        if (s <= 0) { conflict = { idx: j, given: names[j], found: P(a).n }; break; }
+        if (s <= 0) {
+          // جد موجود في الشجرة لم يذكره صاحب النسب (مثل اسم أُضيف لاحقاً في وسط السلسلة): نتخطاه
+          // إن كان الاسم التالي في نسبه هو أبو هذا الجد، فيبقى الربط صحيحاً
+          const g = P(a).p;
+          if (matched.length >= 2 && skips < 2 && g != null && P(g) && nameSim(P(g).k, keys[j]) > 0) { cur = a; skips++; score -= 0.3; continue; }
+          conflict = { idx: j, given: names[j], found: P(a).n };
+          break;
+        }
         matched.push({ id: a, idx: j, sim: s });
         score += s; j++; cur = a;
       }

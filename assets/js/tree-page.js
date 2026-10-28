@@ -704,7 +704,7 @@
       <label class="field"><span>إضافة أبناء (اختياري، افصلهم بفاصلة)</span><input name="kids" placeholder="مثال: علي، حسن"></label>
       <div class="grid-2">
         <label class="field"><span>اسم قبله ${n.parent && !n.parent.virtual ? `(بينه وبين «${esc(n.parent.name)}»)` : '(جد أعلى منه)'}</span><input name="before" placeholder="اختياري"></label>
-        ${n.kids && n.kids.length ? `<label class="field"><span>اسم بعده (بينه وبين أبنائه)</span><input name="after" placeholder="اختياري"></label>` : ''}
+        ${n.kids && n.kids.length ? `<label class="field"><span>اسم بعده (يصير أباً لـ${n.kids.length > 1 ? 'كل أبنائه: ' : ' '}${esc(n.kids.slice(0, 4).map((k) => k.name).join('، '))}${n.kids.length > 4 ? '…' : ''})</span><input name="after" placeholder="اختياري"></label>` : ''}
       </div>
       ${n.kids && n.kids.length ? `<div class="field"><span>البيت</span><button class="btn btn-sm ${n.house ? 'btn-danger-soft' : 'btn-gold'}" value="${n.house ? 'unhouse' : 'house'}" type="submit" formnovalidate>${icon(n.house ? 'x' : 'crown')}${n.house ? 'إلغاء «' + esc(n.house) + '»' : 'اجعله بيتاً'}</button></div>` : ''}
       <footer class="modal-foot" style="justify-content:space-between;flex-wrap:wrap">
