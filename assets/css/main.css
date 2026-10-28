@@ -93,7 +93,9 @@
 
 /* ───────────── الأساس ───────────── */
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: clip; }
+/* حقل الفخ للبرامج الآلية: مخفي دون أن يمد الصفحة جانبياً */
+.hp { position: fixed; top: 0; left: 0; width: 1px !important; min-width: 0 !important; height: 1px; padding: 0 !important; border: 0 !important; margin: 0; opacity: 0; pointer-events: none; overflow: hidden; clip-path: inset(50%); }
 body {
   margin: 0; font-family: var(--font); font-size: 15.5px; line-height: 1.7; color: var(--ink);
   background: var(--bg) var(--pattern); -webkit-font-smoothing: antialiased;
@@ -555,10 +557,24 @@ input[type=color] { width: 52px; height: 40px; padding: 3px; border-radius: 10px
   .side-close { display: inline-grid; position: absolute; top: 10px; inset-inline-end: 10px; }
 }
 @media (max-width: 640px) {
-  .tree-topbar { padding: 8px; gap: 6px; }
-  .tree-crumbs { flex-basis: calc(100% - 50px); order: 0; }
+  /* شريط واحد: البيوت · البحث · الأدوات، والعنوان مكرر في الرأس فيُخفى */
+  .tree-topbar { padding: 8px 10px; gap: 6px; flex-wrap: nowrap; }
+  .tree-topbar .icon-btn { width: 40px; height: 40px; flex: none; }
+  .tree-crumbs { display: none; }
+  /* عند فتح بيت أو فرع: يظهر مسار الرجوع في سطر ثانٍ */
+  .tree-topbar.drilled { flex-wrap: wrap; }
+  .tree-topbar.drilled .tree-crumbs { display: flex; order: 5; flex-basis: 100%; }
+  .tree-topbar.drilled .tree-crumbs h1 { font-size: .95rem; }
   .tree-search { order: 2; flex: 1 1 0; min-width: 0; max-width: none; }
+  .tree-search input { min-height: 40px; font-size: 16px; }
   .tool-group.view-tools { order: 3; }
+  .tools-menu { position: fixed; inset-inline: 10px; top: auto; min-width: 0; max-height: 70dvh; overflow: auto; }
+  .site-header .header-in { min-height: 56px; gap: 8px; }
+  .site-header .brand .logo { width: 36px; height: 36px; }
+  .brand-txt b { font-size: 1.12rem; }
+  .brand-txt small { display: none; }
+  .header-tools .icon-btn { width: 38px; height: 38px; }
+  .header-cta { min-height: 38px; font-size: .86rem; }
   .seg button span { display: none; }
   .drawer { position: fixed; z-index: 70; top: auto; bottom: 0; height: 80vh; height: 80dvh; width: 100%; border-radius: 22px 22px 0 0; border: 1px solid var(--line); transform: translateY(105%) !important; }
   .drawer.open { transform: none !important; }
@@ -665,3 +681,21 @@ input[type=color] { width: 52px; height: 40px; padding: 3px; border-radius: 10px
 .maint-card p { color: var(--muted); margin: 0 0 8px; }
 .maint-bar { position: relative; z-index: 60; background: var(--warn-soft); color: var(--warn); text-align: center; padding: 6px 12px; font-size: .86rem; font-weight: 600; }
 .maint-bar a { color: inherit; text-decoration: underline; }
+
+/* طلب التعديل: ترتيب الأبناء من الأكبر */
+.ord-list { list-style: none; margin: 4px 0 2px; padding: 0; display: grid; gap: 6px; }
+.ord-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.ord-list li.me { border-color: var(--gold-400); background: color-mix(in srgb, var(--gold-100) 60%, var(--surface)); }
+.ord-list li.moved { animation: ord-pop .35s ease; }
+.ord-list .ord-n { min-width: 3.6em; text-align: center; font-size: .74rem; padding: .2em .5em; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); }
+.ord-list li:first-child .ord-n { background: var(--primary-soft); color: var(--primary); }
+.ord-list .ord-name { flex: 1; font-weight: 700; }
+.ord-list .icon-btn { width: 34px; height: 34px; }
+.ord-list .icon-btn .ic { width: 16px; height: 16px; }
+.ord-list .icon-btn.dn .ic { transform: rotate(180deg); }
+.ord-list .icon-btn:disabled { opacity: .3; cursor: default; }
+.ord-list.changed { outline: 2px dashed color-mix(in srgb, var(--primary) 40%, transparent); outline-offset: 4px; border-radius: 12px; }
+@keyframes ord-pop { 0% { transform: scale(.97); background: var(--primary-soft); } 100% { transform: none; } }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips .chip { height: 32px; font-size: .8rem; white-space: nowrap; padding: 0 .9em; width: auto; border-radius: 999px; }
+.chips .chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }

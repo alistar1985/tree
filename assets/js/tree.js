@@ -287,20 +287,23 @@
       const baseVd = chain.length;
       const build = (n, vd) => ({ n, children: this._visKids(n, vd).map((k) => build(k, vd + 1)) });
       const h = d3.hierarchy(build(crown, baseVd), (d) => (d.children.length ? d.children : null));
-      // كل جيل بشكل ولون واحد: الأوراق للجيل الأخير فقط، وباقي الأجيال دوائر حتى من لا أبناء له
+      // كل من يتفرع من الجد الجامع ورقة بلون جيله، ونهايات النسل براعم خضراء،
+      // وحجم الورقة يكبر مع حجم الذرية
       const lastRel = crown.maxGen - crown.gen;
+      const LL = mode === 'organic' ? 60 : 62;          // طول الورقة الأساسي
+      const LW = mode === 'organic' ? 26 : 27;          // عرض الورقة الأساسي
       h.each((d) => {
         const n = d.data.n;
-        if (d.depth === 0) d.kind = 'crown';
-        else if (d.depth === lastRel && !n.kids.length) d.kind = 'leaf';
-        else d.kind = 'circle';
+        d.kind = d.depth === 0 ? 'crown' : 'leaf';
+        d.bud = !n.kids.length;
         d.hidden = n.kids.length && !(d.children && d.children.length) ? n.desc : 0;
+        d.sc = d.bud ? 1 : 1.08 + Math.min(0.95, Math.log2(n.desc + 1) * 0.2);
+        d.L = LL * d.sc * (d.bud ? 0.94 : 1);
+        d.W = LW * d.sc * (d.bud ? 1.08 : 1);
       });
       const isLeaf = (d) => d.kind === 'leaf';
 
       const R = mode === 'organic' ? 24 : 26;           // نصف قطر الدائرة
-      const LL = mode === 'organic' ? 56 : 62;          // طول الورقة
-      const LW = mode === 'organic' ? 25 : 27;          // عرض الورقة
       const trunkNodes = chain.slice(0, -1);
       const nodes = [];
       const links = [];
@@ -309,28 +312,34 @@
       if (mode === 'organic') {
         // تاج مرتب: كل جيل على حلقة، وكل فرع يأخذ زاوية بقدر حجم ذريته (ترتيب متوازن بلا تقاطع)،
         // والتاج كله فوق الجذع (نصف دائرة) مهما كبرت الشجرة
-        const span = Math.PI * 0.96;
+        // على شاشة الهاتف الطولية يصير التاج أضيق وأطول حتى يملأ الشاشة بدل شريط عريض صغير
+        this._shape = this.shape();
+        const span = Math.PI * ({ tall: 0.52, square: 0.78 }[this._shape] || 0.96);
+        const ex = this._shape === 'tall' ? 0.82 : EX, ey = this._shape === 'tall' ? 1.18 : EY;
         d3.tree().size([span, 1]).separation((a, b) => (a.parent === b.parent ? 1 : 1.6) / Math.max(1, a.depth))(h);
         const H = h.height;
         const rows = [];
         h.each((d) => { if (d.depth > 0) (rows[d.depth] = rows[d.depth] || []).push(d); });
-        const tang = (d) => (isLeaf(d) ? LW + 8 : 2 * R + 10); // العرض المماسي لكل عقدة
+        const tang = (d) => d.W + 10; // العرض المماسي لكل ورقة
         const radius = [0];
         for (let k = 1; k <= H; k++) {
           const row = (rows[k] || []).slice().sort((a, b) => a.x - b.x);
           let need = 0;
           for (let i = 1; i < row.length; i++) {
-            need = Math.max(need, ((tang(row[i]) + tang(row[i - 1])) / 2) / Math.max(1e-4, row[i].x - row[i - 1].x));
+            need = Math.max(need, ((tang(row[i]) + tang(row[i - 1])) / 2) / Math.max(1e-4, row[i].x - row[i - 1].x) / Math.min(1, ex));
           }
-          radius[k] = Math.max(k === 1 ? 150 : radius[k - 1] + (row.every(isLeaf) ? LL + 22 : 2 * R + 46), need);
+          // الحلقة التالية تبدأ بعد طرف أطول ورقة في الحلقة السابقة ثم غصن قصير
+          const prevL = k === 1 ? 0 : Math.max(...(rows[k - 1] || []).map((d) => d.L));
+          radius[k] = Math.max(k === 1 ? 140 : radius[k - 1] + prevL + 46, need);
         }
         const rOut = radius[H] || 150;
+        this._ex = ex; this._ey = ey;
         h.each((d) => {
           const a = -Math.PI / 2 - (d.x - span / 2);
           d.angle = a;
           d.r = radius[d.depth] || 0;
-          d.px = d.r * Math.cos(a) * EX;
-          d.py = d.r * Math.sin(a) * EY;
+          d.px = d.r * Math.cos(a) * ex;
+          d.py = d.r * Math.sin(a) * ey;
         });
         const step = 54;
         const tLen = Math.max(130, rOut * 0.34, trunkNodes.length * step + 80);
@@ -362,9 +371,12 @@
             th = Math.PI / 2 + (raw - Math.PI / 2) * 0.42;
           }
           d.theta = th;
-          const off = mode === 'organic' ? 0 : LL / 2;
+          const off = mode === 'organic' ? 0 : d.L / 2;
           d.bx = d.px - Math.cos(th) * off;
           d.by = d.py - Math.sin(th) * off;
+          // طرف الورقة: منه تتفرع أغصان الأبناء
+          d.tx = d.bx + Math.cos(th) * d.L * 0.92;
+          d.ty = d.by + Math.sin(th) * d.L * 0.92;
         }
       });
       h.each((d) => nodes.push(d));
@@ -372,15 +384,17 @@
       h.each((d) => {
         if (!d.parent) return;
         const p = d.parent;
-        const x0 = p.px, y0 = p.py;
+        const x0 = isLeaf(p) ? p.tx : p.px, y0 = isLeaf(p) ? p.ty : p.py;
         const x1 = isLeaf(d) ? d.bx : d.px, y1 = isLeaf(d) ? d.by : d.py;
-        const w0 = Math.min(mode === 'organic' ? 26 : 20, 1.6 + Math.sqrt(d.data.n.desc + 1) * (mode === 'organic' ? 1.9 : 1.5));
-        const w1 = isLeaf(d) ? 1.3 : Math.max(1.4, w0 * 0.6);
+        // سُمك الغصن يكبر مع الذرية التي يحملها
+        const w0 = Math.min(mode === 'organic' ? 30 : 22, 1.8 + Math.sqrt(d.data.n.desc + 1) * (mode === 'organic' ? 2.2 : 1.6));
+        const w1 = Math.max(1.4, w0 * (d.bud ? 0.35 : 0.55));
         let p1, p2;
         if (mode === 'organic') {
-          const rm = (p.r + d.r) / 2;
-          p1 = p.depth === 0 ? [0, -Math.min(70, d.r * 0.4)] : [rm * Math.cos(p.angle) * EX, rm * Math.sin(p.angle) * EY];
-          p2 = [rm * 0.98 * Math.cos(d.angle) * EX, rm * 0.98 * Math.sin(d.angle) * EY];
+          const r0 = isLeaf(p) ? p.r + p.L * 0.92 : p.r;
+          const rm = (r0 + d.r) / 2;
+          p1 = p.depth === 0 ? [0, -Math.min(70, d.r * 0.4)] : [rm * Math.cos(p.angle) * this._ex, rm * Math.sin(p.angle) * this._ey];
+          p2 = [rm * 0.98 * Math.cos(d.angle) * this._ex, rm * 0.98 * Math.sin(d.angle) * this._ey];
         } else {
           const dy = y1 - y0;
           p1 = [x0, y0 + dy * 0.55];
@@ -449,22 +463,42 @@
           addText(g, lines, fs, ink, { 'font-family': FONT_DISPLAY, 'font-weight': 700 });
           if (n.house) el(g, 'path', { d: CROWN, transform: 'translate(0,-36) scale(1.4)', fill: '#d9ae22', stroke: '#8f6b0c', 'stroke-width': 0.6 });
         } else if (kind === 'leaf') {
-          hasLeaf = true;
+          if (d.bud) hasLeaf = true;
+          else if (this.o.colorMode === 'generation') legendGen.add(d.depth);
+          const L = d.L, W = d.W;
           const deg = d.theta * 180 / Math.PI;
           const lx = d.bx - d.px, ly = d.by - d.py;
           const lg = el(g, 'g', { transform: `translate(${lx.toFixed(1)},${ly.toFixed(1)}) rotate(${deg.toFixed(1)})` });
-          el(lg, 'path', { class: 'shape', d: leafPath(LL, LW), fill, stroke: n.pending ? '#b26a00' : darker(fill, 0.35), 'stroke-width': n.pending ? 1.8 : 1, 'stroke-dasharray': dash });
-          el(lg, 'path', { d: `M3,0L${LL - 6},0`, stroke: mix(fill, '#ffffff', 0.35), 'stroke-width': 0.7, opacity: 0.35 });
+          if (n.house) el(lg, 'path', { d: leafPath(L + 7, W + 7), transform: 'translate(-3.5,0)', fill: 'none', stroke: '#d9ae22', 'stroke-width': 2.6 });
+          el(lg, 'path', { class: 'shape', d: leafPath(L, W), fill, stroke: n.pending ? '#b26a00' : darker(fill, 0.35), 'stroke-width': n.pending ? 1.8 : 1.1, 'stroke-dasharray': dash });
+          // لمعة البرعم الطري
+          if (d.bud) el(lg, 'path', { d: `M${(L * 0.18).toFixed(1)},${(-W * 0.18).toFixed(1)}Q${(L * 0.45).toFixed(1)},${(-W * 0.36).toFixed(1)} ${(L * 0.72).toFixed(1)},${(-W * 0.14).toFixed(1)}`, stroke: '#ffffff', 'stroke-width': 1.6, 'stroke-linecap': 'round', fill: 'none', opacity: 0.45 });
+          // عرق الورقة وتعريقاتها الجانبية
+          const vein = mix(fill, lum(fill) > 0.5 ? '#000000' : '#ffffff', 0.3);
+          el(lg, 'path', { d: `M2,0L${(L - 5).toFixed(1)},0` + (L > 40 ? `M${(L * 0.3).toFixed(1)},0L${(L * 0.42).toFixed(1)},${(-W * 0.28).toFixed(1)}M${(L * 0.3).toFixed(1)},0L${(L * 0.42).toFixed(1)},${(W * 0.28).toFixed(1)}M${(L * 0.6).toFixed(1)},0L${(L * 0.7).toFixed(1)},${(-W * 0.2).toFixed(1)}M${(L * 0.6).toFixed(1)},0L${(L * 0.7).toFixed(1)},${(W * 0.2).toFixed(1)}` : ''),
+            stroke: vein, 'stroke-width': 0.7, fill: 'none', opacity: 0.35 });
           // النص على امتداد الورقة ومن جهة القاعدة، مع تجنب انقلابه
           let tdeg = deg + 180;
           tdeg = ((tdeg % 360) + 360) % 360;
           if (tdeg > 90 && tdeg < 270) tdeg -= 180;
           const words = String(n.name).trim().split(/\s+/);
           const lines = words.length > 1 && n.name.length > 7 ? textLines(n.name) : [n.name];
-          const fs = fitFont(lines, LL - 15, LW - 5, mode === 'organic' ? 10.5 : 11);
-          const cx = Math.cos(d.theta) * LL * 0.53 + lx, cy = Math.sin(d.theta) * LL * 0.53 + ly;
+          const fs = fitFont(lines, L - 12, W - 4, 11 * Math.min(1.5, d.sc));
+          const cx = Math.cos(d.theta) * L * 0.53 + lx, cy = Math.sin(d.theta) * L * 0.53 + ly;
           addText(g, lines, fs, ink, { transform: `translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${(tdeg - 360 * Math.round(tdeg / 360)).toFixed(1)})` });
-          if (n.house) el(g, 'circle', { cx: lx, cy: ly, r: 4, fill: '#d9ae22', stroke: '#8f6b0c', 'stroke-width': 0.8 });
+          if (n.house) el(g, 'path', { d: CROWN, transform: `translate(${(lx - Math.cos(d.theta) * 10).toFixed(1)},${(ly - Math.sin(d.theta) * 10).toFixed(1)}) scale(1.1)`, fill: '#d9ae22', stroke: '#8f6b0c', 'stroke-width': 0.6 });
+          if (d.hidden) {
+            hasCollapsed = true;
+            const label = '+' + d.hidden;
+            const bw = 12 + label.length * 6.4;
+            const bx = d.tx - d.px + Math.cos(d.theta) * 12, by = d.ty - d.py + Math.sin(d.theta) * 12;
+            const bg = el(g, 'g', { class: 'badge', transform: `translate(${bx.toFixed(1)},${by.toFixed(1)})` });
+            el(bg, 'rect', { x: -bw / 2, y: -8, width: bw, height: 16, rx: 8, fill: dark ? '#e9dcc0' : '#3b2314' });
+            const t = addText(bg, [label], 10, dark ? '#2a1d12' : '#fff3d6');
+            t.setAttribute('font-family', FONT);
+          }
+          // مركز الورقة لتوسيط العرض عليها
+          this.pos.set(n.id, { x: d.px + Math.cos(d.theta) * L * 0.5, y: d.py + Math.sin(d.theta) * L * 0.5, kind, fill });
         } else {
           if (this.o.colorMode === 'generation') legendGen.add(d.depth);
           const lines = textLines(n.name);
@@ -532,13 +566,13 @@
       if (trunkNodes.length) lg.push({ type: 'plaque', color: C.trunk, label: 'الأجداد (ألواح الجذع)' });
       lg.push({ type: 'oval', color: C.root, label: 'الجد الجامع: ' + crown.name });
       if (this.o.colorMode === 'generation') {
-        [...legendGen].sort((a, b) => a - b).forEach((k) => lg.push({ type: 'circle', color: C.gen[(k - 1) % C.gen.length], label: genName(k) }));
-        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: genName(lastRel) + ' (الأخير): أوراق' });
+        [...legendGen].sort((a, b) => a - b).forEach((k) => lg.push({ type: 'leaf', color: C.gen[(k - 1) % C.gen.length], label: genName(k) }));
+        if (hasLeaf) lg.push({ type: 'leaf', color: mix(C.leaf, '#8fd14f', 0.4), label: 'براعم: نهايات النسل' });
         if (hasHead) lg.push({ type: 'ring', color: '#d9ae22', label: 'رأس بيت' });
       } else if (this.o.colorMode === 'classic') {
         if (hasHead) lg.push({ type: 'circle', color: C.head, label: 'رؤوس البيوت' });
-        lg.push({ type: 'circle', color: C.son, label: 'الأبناء' });
-        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: 'الجيل الأخير (الأوراق)' });
+        lg.push({ type: 'leaf', color: C.son, label: 'الأبناء' });
+        if (hasLeaf) lg.push({ type: 'leaf', color: C.leaf, label: 'براعم: نهايات النسل' });
       } else if (this.hasHouses) {
         [...housesInView.values()].slice(0, 14).forEach((hn) => lg.push({ type: 'circle', color: hn.hc, label: hn.house }));
         lg.push({ type: 'circle', color: C.son, label: 'خارج البيوت' });
@@ -562,17 +596,24 @@
       if (this.o.onRender) this.o.onRender(this);
     }
 
+    /** شكل مساحة العرض: طولية (هاتف) أو مربعة أو عريضة */
+    shape() {
+      const w = this.el.clientWidth || 1, h = this.el.clientHeight || 1;
+      return h > w * 1.25 ? 'tall' : h > w * 0.9 ? 'square' : 'wide';
+    }
+
     _fill(d) {
       const n = d.data.n, C = this.o.colors, m = this.o.colorMode;
       if (d.kind === 'trunk') return C.trunk;
       if (d.kind === 'crown') return C.root;
       if (m === 'house') {
         const hc = n.houseNode ? n.houseNode.hc : (!this.hasHouses && n.branch ? n.branch.bc : null);
-        if (d.kind === 'leaf') return hc ? mix(hc, C.leaf, 0.35) : C.leaf;
+        if (d.bud) return hc ? mix(hc, C.leaf, 0.55) : C.leaf;
         return hc || C.son;
       }
-      if (d.kind === 'leaf') return (m === 'classic' && n.house) ? C.head : C.leaf;
-      if (m === 'classic') return n.house ? C.head : C.son;
+      if (m === 'classic') return n.house ? C.head : d.bud ? C.leaf : C.son;
+      // البراعم (نهايات النسل) خضراء، وباقي الأوراق بلون جيلها
+      if (d.bud) return mix(C.leaf, '#8fd14f', 0.4);
       return C.gen[(d.depth - 1) % C.gen.length];
     }
 

@@ -276,8 +276,9 @@ PAGES.review = async (tab = 'subs') => {
     }).join('') : `<div class="panel">${empty('check', 'لا توجد طلبات بانتظار المراجعة')}</div>`;
   } else if (tab === 'sugg') {
     body = panel('طلبات التعديل', 'edit', `<div class="feed">${sugg.length ? sugg.map((g) => `<div class="feed-item"><span class="feed-dot ${g.st === 'open' ? 'warn' : 'ok'}">${icon(g.st === 'open' ? 'alert' : 'check')}</span>
-      <div style="flex:1;min-width:0"><p>${g.pid != null && P(g.pid) ? `<a href="#people/${g.pid}"><b>${esc(S.nasab(g.pid, 5))}</b></a> — ` : ''}${esc(g.msg)}</p><small>${S.timeAgo(g.at)}${g.contact ? ' · ' + esc(g.contact) : ''}${g.st !== 'open' ? ' · ' + (g.st === 'done' ? 'تمت الموافقة' : 'مرفوض') + ' بواسطة ' + esc(g.rby || '') : ''}</small></div>
-      ${g.st === 'open' ? `<div style="display:flex;gap:6px">${g.kind === 'rename' || g.kind === 'order'
+      <div style="flex:1;min-width:0">${g.who ? `<p style="margin:0 0 4px">${icon('user')}<b>${esc(g.who)}</b> يطلب:</p>` : ''}<p>${g.pid != null && P(g.pid) ? `<a href="#people/${g.pid}"><b>${esc(S.nasab(g.pid, 5))}</b></a> — ` : ''}${esc(g.msg)}</p>
+      ${g.ord ? `<ol class="ord-view">${String(g.ord).split(',').map((x) => `<li>${esc(P(+x) ? P(+x).n : '؟')}</li>`).join('')}</ol>` : ''}<small>${S.timeAgo(g.at)}${g.contact && !g.who ? ' · ' + esc(g.contact) : ''}${g.st !== 'open' ? ' · ' + (g.st === 'done' ? 'تمت الموافقة' : 'مرفوض') + ' بواسطة ' + esc(g.rby || '') : ''}</small></div>
+      ${g.st === 'open' ? `<div style="display:flex;gap:6px">${['rename', 'order', 'edit'].includes(g.kind)
         ? `<button class="btn btn-xs btn-ok-soft" data-act="sugg-apply" data-id="${esc(g.id)}">${icon('check')}موافقة وتطبيق</button>`
         : `<button class="btn btn-xs btn-ok-soft" data-act="sugg" data-st="done" data-id="${esc(g.id)}">${icon('check')}تم</button>`}
         <button class="btn btn-xs btn-danger-soft" data-act="sugg" data-st="dismissed" data-id="${esc(g.id)}">${icon('x')}رفض</button></div>` : ''}</div>`).join('') : empty('check', 'لا توجد طلبات تعديل')}</div>`);
@@ -745,6 +746,10 @@ document.addEventListener('click', async (e) => {
       if (!g || g.pid == null || !P(g.pid)) throw new Error('الشخص غير موجود في الشجرة');
       if (g.kind === 'rename') await S.updatePerson(g.pid, { name: g.value });
       else if (g.kind === 'order') await S.placeBefore(g.pid, g.sib);
+      else if (g.kind === 'edit') {
+        if (g.value) await S.updatePerson(g.pid, { name: g.value });
+        if (g.ord && g.op != null) await S.setOrder(g.op, String(g.ord).split(','));
+      }
       await update(ref(db, 'suggestions/' + id), { st: 'done', rby: S.actor().l });
     }, 'تمت الموافقة وطُبّق التعديل');
     if (ok) { await refreshCounts(); route(); }

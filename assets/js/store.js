@@ -28,7 +28,16 @@ const DB_URL = firebaseConfig.databaseURL;
 async function rest(path, opt = {}) {
   let url = `${DB_URL}/${path}.json`;
   if (auth.currentUser) url += '?auth=' + encodeURIComponent(await auth.currentUser.getIdToken());
-  const r = await fetch(url, { ...opt, headers: { 'Content-Type': 'application/json' } });
+  // القراءة تُعاد تلقائياً عند ضغط الخادم أو انقطاع الشبكة (حتى 4 محاولات بتأخير متزايد)
+  const tries = opt.method ? 1 : 4;
+  let r;
+  for (let i = 0; i < tries; i++) {
+    try {
+      r = await fetch(url, { ...opt, headers: { 'Content-Type': 'application/json' } });
+      if (r.ok || (r.status < 500 && r.status !== 429) || i === tries - 1) break;
+    } catch (e) { if (i === tries - 1) throw e; }
+    await new Promise((ok) => setTimeout(ok, 400 * 2 ** i + Math.random() * 400));
+  }
   if (!r.ok) {
     const e = new Error(r.status === 401 || r.status === 403 ? 'PERMISSION_DENIED' : 'HTTP ' + r.status);
     e.code = e.message;
@@ -280,8 +289,14 @@ export async function loadPersons(force) {
   let raw;
   if (c && state.rev && c.rev === state.rev && c.data) raw = c.data;
   else {
-    raw = (await restGet('persons')) || {};
-    cacheSet('persons', { rev: state.rev, data: raw });
+    try {
+      raw = (await restGet('persons')) || {};
+      cacheSet('persons', { rev: state.rev, data: raw });
+    } catch (e) {
+      // تعذر التحميل: نعرض آخر نسخة محفوظة بدل صفحة فارغة، ويُحدَّث لاحقاً
+      if (!(c && c.data)) throw e;
+      raw = c.data;
+    }
   }
   return buildMap(raw);
 }
@@ -591,6 +606,20 @@ export async function placeBefore(id, sib) {
   const u = {};
   ids.forEach((x, i) => { u[`persons/${x}/o`] = i + 1; });
   auditEntry(u, actor(), 'reorder', 'person', +id, `جعل «${p.n}» أكبر من أخيه «${P(sib).n}»`);
+  await commit(u);
+}
+
+/** يرتب أبناء الأب حسب القائمة (من الأكبر)، ومن لم يرد فيها يبقى بعدهم بترتيبه الحالي */
+export async function setOrder(parent, list) {
+  await loadPersons();
+  const cur = kidsOf(parent);
+  if (!cur.length) throw err('لا يوجد أبناء لترتيبهم');
+  if (!can('reorder', cur[0])) throw err('لا تملك صلاحية الترتيب هنا');
+  const ids = list.map(Number).filter((x, i, a) => cur.includes(x) && a.indexOf(x) === i);
+  cur.forEach((x) => { if (!ids.includes(x)) ids.push(x); });
+  const u = {};
+  ids.forEach((x, i) => { u[`persons/${x}/o`] = i + 1; });
+  auditEntry(u, actor(), 'reorder', 'person', +parent, `رتّب أبناء «${P(parent) ? P(parent).n : ''}»: ${ids.map((x) => P(x).n).join('، ')}`);
   await commit(u);
 }
 
@@ -1168,27 +1197,38 @@ const handlers = {
     });
     return { ok: true, items };
   },
-  /** طلب تعديل من الزائر: تصحيح اسم، أو ترتيب الإخوة (من الأكبر)، أو ملاحظة — يُعتمد أو يُرفض من لوحة التحكم */
+  /** طلب تعديل من الزائر: تصحيح الاسم و/أو ترتيب الأبناء من الأكبر، مع اسم مقدّم الطلب — يُعتمد أو يُرفض من لوحة التحكم */
   async suggest(d) {
     await loadPersons();
     const pid = d.person_id != null ? +d.person_id : null;
-    const kind = ['rename', 'order'].includes(d.kind) ? d.kind : 'note';
     const p = pid != null ? P(pid) : null;
-    let msg = String(d.message || '').trim(), value, sib;
-    if (kind === 'rename') {
-      value = Names.clean(d.value || '');
-      const e = nameError(value);
+    if (!p) throw err('الشخص غير موجود في الشجرة');
+    const who = String(d.who || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (who.length < 3) throw err('اكتب اسمك حتى تعرف الإدارة من صاحب الطلب');
+    const note = String(d.message || '').trim();
+    const parts = [];
+    let value, ord, op;
+    const nv = Names.clean(d.value || '');
+    if (nv && Names.key(nv) !== p.k) {
+      const e = nameError(nv);
       if (e) throw err(e);
-      if (p && Names.key(value) === p.k) throw err('الاسم الجديد مطابق للحالي');
-      msg = `تصحيح الاسم من «${p ? p.n : ''}» إلى «${value}»` + (msg ? ' — ' + msg : '');
-    } else if (kind === 'order') {
-      sib = +d.sib;
-      if (!p || !P(sib) || P(sib).p !== p.p || sib === pid) throw err('اختر الأخ من القائمة');
-      msg = `«${p.n}» أكبر من أخيه «${P(sib).n}»` + (msg ? ' — ' + msg : '');
-    } else if (msg.length < 5) throw err('اكتب تفاصيل التصحيح المطلوب');
+      value = nv;
+      parts.push(`تصحيح الاسم من «${p.n}» إلى «${nv}»`);
+    }
+    if (d.order_parent != null && Array.isArray(d.order)) {
+      op = +d.order_parent;
+      const cur = kidsOf(op);
+      const list = d.order.map(Number).filter((x) => cur.includes(x));
+      if (list.length === cur.length && list.some((x, i) => x !== cur[i])) {
+        ord = list.join(',');
+        parts.push(`ترتيب أبناء «${P(op).n}» من الأكبر: ${list.map((x) => P(x).n).join('، ')}`);
+      }
+    }
+    if (!parts.length && note.length < 5) throw err('لم تغيّر شيئاً — صحّح الاسم أو رتّب الأبناء أو اكتب ملاحظتك');
+    const msg = (parts.join(' · ') || note) + (parts.length && note ? ' — ' + note : '');
     const u = {};
-    u['suggestions/' + pushId()] = clean({ pid: pid ?? undefined, kind, value, sib, msg: msg.slice(0, 1000), contact: String(d.contact || '').slice(0, 80) || undefined, at: TS(), st: 'open' });
-    auditEntry(u, { t: 'public', l: 'زائر' }, 'suggest', 'person', pid, `طلب تعديل: ${msg.slice(0, 90)}`);
+    u['suggestions/' + pushId()] = clean({ pid, kind: value || ord ? 'edit' : 'note', value, ord, op: ord ? op : undefined, msg: msg.slice(0, 1000), who, contact: who, at: TS(), st: 'open' });
+    auditEntry(u, { t: 'public', l: who }, 'suggest', 'person', pid, `طلب تعديل: ${msg.slice(0, 90)}`);
     await write(u);
     return { ok: true };
   },

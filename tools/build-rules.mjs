@@ -134,7 +134,7 @@ const rules = {
       $sid: {
         '.write': `${ADMIN} || !data.exists()`,
         '.validate': `newData.hasChildren(['msg', 'at'])`,
-        pid: num, msg: str(1000), contact: str(80), at: num, st: str(12), rby: str(120), kind: str(10), value: str(40), sib: num,
+        pid: num, msg: str(1000), contact: str(80), at: num, st: str(12), rby: str(120), kind: str(10), value: str(40), sib: num, ord: str(800), op: num, who: str(80),
         $other: { '.validate': false },
       },
     },
