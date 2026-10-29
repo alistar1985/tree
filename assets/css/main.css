@@ -699,3 +699,10 @@ input[type=color] { width: 52px; height: 40px; padding: 3px; border-radius: 10px
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips .chip { height: 32px; font-size: .8rem; white-space: nowrap; padding: 0 .9em; width: auto; border-radius: 999px; }
 .chips .chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+
+/* درج الشخص: زران رئيسيان واضحان، وباقي الأدوات مطوية */
+.d-main { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.d-main .btn { justify-content: center; min-height: 46px; }
+.d-more { margin-top: 10px; }
+.d-more > summary { cursor: pointer; color: var(--muted); font-size: .86rem; font-weight: 600; }
+.d-more[open] > summary { margin-bottom: 8px; }

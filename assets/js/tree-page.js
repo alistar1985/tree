@@ -179,7 +179,7 @@
   /* ───────────── أدوات العرض ───────────── */
   function syncControls() {
     $$('#colorSeg button').forEach((b) => b.classList.toggle('on', b.dataset.color === state.color));
-    $('#depthSel').value = String(state.depth || 0);
+    if ($('#depthSel')) $('#depthSel').value = String(state.depth || 0);
   }
   if ($('#modeSeg')) $('#modeSeg').addEventListener('click', (e) => {
     const b = e.target.closest('[data-mode]');
@@ -191,7 +191,7 @@
     if (state.sel) tree.select(state.sel);
     syncControls(); savePrefs();
   });
-  $('#colorSeg').addEventListener('click', (e) => {
+  if ($('#colorSeg')) $('#colorSeg').addEventListener('click', (e) => {
     const b = e.target.closest('[data-color]');
     if (!b) return;
     state.color = b.dataset.color;
@@ -199,7 +199,7 @@
     tree.render({ keepView: true });
     syncControls(); savePrefs();
   });
-  $('#depthSel').addEventListener('change', (e) => {
+  if ($('#depthSel')) $('#depthSel').addEventListener('change', (e) => {
     state.depth = +e.target.value;
     tree.setOptions({ maxDepth: state.depth });
     tree.expanded.clear();
@@ -428,27 +428,27 @@
     if (p.updated_by) meta.push(['آخر تعديل', p.updated_by + ' · ' + p.updated_at]);
     if (p.phone) meta.push(['الهاتف (للمشرف فقط)', p.phone]);
 
-    const acts = [];
-    acts.push(`<button class="btn btn-sm btn-outline" type="button" data-act="branch">${icon('branch')}شجرة فرعه وحده</button>`);
-    if (n.kids.length) acts.push(`<button class="btn btn-sm btn-outline" type="button" data-act="toggle">${icon('layers')}طي/توسيع الفرع</button>`);
-    acts.push(`<button class="btn btn-sm btn-outline" type="button" data-act="copy">${icon('copy')}نسخ النسب</button>`);
-    acts.push(`<button class="btn btn-sm btn-outline" type="button" data-act="share">${icon('share')}مشاركة</button>`);
+    // زران فقط للجميع: شجرته الخاصة، والتعديل (مباشر لصاحب الصلاحية، أو طلب تعديل للزائر)
+    const canEdit = P.edit || P.add || P.delete;
+    const acts = [`<button class="btn btn-primary" type="button" data-act="branch">${icon('tree')}${n.house ? 'شجرة ' + esc(n.house) : n.kids.length ? 'شجرة ' + esc(n.name) + ' وذريته' : 'مكانه في الشجرة'}</button>`,
+      canEdit ? `<button class="btn btn-outline" type="button" data-act="${viewer.type === 'admin' ? 'admin-edit' : 'edit'}">${icon('edit')}تعديل</button>`
+        : `<button class="btn btn-outline" type="button" data-act="suggest">${icon('edit')}طلب تعديل</button>`];
+    // أدوات إضافية لصاحب الرمز (المالك يعدّل كل شيء من صفحة الشخص في لوحة التحكم)
     const edit = [];
-    if (P.add) edit.push(`<button class="btn btn-sm btn-primary" type="button" data-act="add">${icon('user-plus')}إضافة أبناء</button>`);
-    if (P.edit) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="edit">${icon('edit')}تعديل البيانات</button>`);
-    if (P.move) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="move">${icon(n.floating ? 'link' : 'move')}${n.floating ? 'ربطه بأبيه' : 'نقل إلى أب آخر'}</button>`);
-    if (P.merge) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="merge">${icon('merge')}دمج مع مكرر</button>`);
-    if (P.reorder) {
-      edit.push(`<button class="btn btn-sm btn-ghost" type="button" data-act="up">${icon('arrow-r')}تقديم (أكبر سناً)</button>`);
-      edit.push(`<button class="btn btn-sm btn-ghost" type="button" data-act="down">${icon('arrow-l')}تأخير (أصغر سناً)</button>`);
+    if (viewer.type !== 'admin') {
+      if (P.add) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="add">${icon('user-plus')}إضافة أبناء</button>`);
+      if (P.move) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="move">${icon(n.floating ? 'link' : 'move')}${n.floating ? 'ربطه بأبيه' : 'نقل إلى أب آخر'}</button>`);
+      if (P.merge) edit.push(`<button class="btn btn-sm btn-outline" type="button" data-act="merge">${icon('merge')}دمج مع مكرر</button>`);
+      if (P.delete) edit.push(`<button class="btn btn-sm btn-danger-soft" type="button" data-act="delete">${icon('trash')}حذف</button>`);
     }
-    if (P.delete) edit.push(`<button class="btn btn-sm btn-danger-soft full" type="button" data-act="delete">${icon('trash')}حذف</button>`);
     const review = P.approve && p.submission ? `<div class="d-sec"><h4>${icon('inbox')}طلب بانتظار المراجعة</h4><div class="d-actions">
         <button class="btn btn-sm btn-ok-soft" type="button" data-act="approve">${icon('check')}اعتماد الطلب</button>
         <button class="btn btn-sm btn-danger-soft" type="button" data-act="reject">${icon('x')}رفض الطلب</button></div></div>` : '';
 
     drawer.innerHTML = drawerHead(n, p) + `<div class="drawer-body">
       ${review}
+      <div class="d-sec"><div class="d-main">${acts.join('')}</div>
+        ${edit.length ? `<details class="d-more"><summary>أدوات أخرى</summary><div class="d-actions">${edit.join('')}</div></details>` : ''}</div>
       <div class="d-sec"><h4>${icon('link')}النسب</h4><div class="nasab-chain">${chain}</div></div>
       <div class="d-sec facts">
         <div><b>${p.children.length}</b><span>الأبناء</span></div>
@@ -457,11 +457,8 @@
       </div>
       <div class="d-sec"><h4>${icon('users')}الأبناء</h4>${kids}</div>
       ${p.bio ? `<div class="d-sec"><h4>${icon('info')}نبذة</h4><p style="margin:0;white-space:pre-line">${esc(p.bio)}</p></div>` : ''}
-      <div class="d-sec"><div class="d-actions">${acts.join('')}</div></div>
-      ${edit.length ? `<div class="d-sec"><h4>${icon(viewer.type === 'admin' ? 'shield' : 'key')}أدوات التحرير</h4><div class="d-actions">${edit.join('')}</div></div>` : ''}
       <div id="dForm"></div>
-      <div class="d-sec"><h4>${icon('history')}السجل</h4><div class="meta-list">${meta.map((m) => `<div><span>${esc(m[0])}</span><b>${esc(m[1])}</b></div>`).join('')}</div></div>
-      <div class="d-sec"><button class="btn btn-sm btn-outline btn-block" type="button" data-act="suggest">${icon('edit')}طلب تعديل (الاسم أو من الأكبر)</button></div>
+      ${canEdit ? `<div class="d-sec"><div class="meta-list">${meta.map((m) => `<div><span>${esc(m[0])}</span><b>${esc(m[1])}</b></div>`).join('')}</div></div>` : ''}
     </div>`;
     drawer.__p = p;
     drawer.__n = n;
@@ -477,7 +474,10 @@
     const p = drawer.__p, n = drawer.__n;
     const act = a.dataset.act;
     try {
-      if (act === 'branch') return setRoot(n.id, true);
+      // شجرته الخاصة؛ ومن لا أبناء له نعرض فرع أبيه حتى يظهر مكانه بين إخوته
+      if (act === 'branch') closeDrawer();
+      if (act === 'branch') return setRoot(n.kids.length || !n.parent || n.parent.virtual ? n.id : n.parent.id, true);
+      if (act === 'admin-edit') { location.href = 'admin#people/' + n.id; return; }
       if (act === 'toggle') return tree.toggle(n.id);
       if (act === 'copy') return App.copy(drawer.__nasab);
       if (act === 'share') {

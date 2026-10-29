@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="assets/css/main.css?v=18">
+<link rel="stylesheet" href="assets/css/main.css?v=19">
 <script>try{var t=localStorage.getItem('clan-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 </head>
 <body class="is-app page-tree" data-page="tree">
@@ -53,21 +53,9 @@
       </div>
       <div class="tool-group view-tools">
         <div class="menu-wrap">
-          <button class="icon-btn" type="button" id="exportBtn" title="خيارات العرض والطباعة"><svg class="ic"><use href="#i-sliders"/></svg></button>
+          <button class="icon-btn" type="button" id="exportBtn" title="حفظ وطباعة ومشاركة"><svg class="ic"><use href="#i-share"/></svg></button>
           <div class="menu tools-menu" id="exportMenu" hidden>
-            <div class="menu-sec">التلوين</div>
-            <div class="seg" id="colorSeg" role="group" aria-label="التلوين">
-              <button type="button" data-color="generation" title="كل جيل بلون"><svg class="ic"><use href="#i-layers"/></svg><span>الأجيال</span></button>
-              <button type="button" data-color="house" title="كل بيت بلون"><svg class="ic"><use href="#i-house"/></svg><span>البيوت</span></button>
-              <button type="button" data-color="classic" title="رؤوس البيوت ذهبي والأبناء أبيض"><svg class="ic"><use href="#i-palette"/></svg><span>كلاسيكي</span></button>
-            </div>
-            <div class="menu-sec">الأجيال المعروضة</div>
-            <select id="depthSel">
-              <option value="0">كل الأجيال</option>
-              <option value="3">3 أجيال</option><option value="4">4 أجيال</option><option value="5">5 أجيال</option><option value="6">6 أجيال</option>
-              <option value="7">7 أجيال</option><option value="8">8 أجيال</option><option value="10">10 أجيال</option><option value="12">12 جيلاً</option>
-            </select>
-            <div class="menu-sec">طباعة ومشاركة</div>
+            <div class="menu-sec">حفظ ومشاركة</div>
             <button type="button" data-export="png"><svg class="ic"><use href="#i-image"/></svg>تحميل كلوحة (صورة PNG)</button>
             <button type="button" data-export="svg"><svg class="ic"><use href="#i-download"/></svg>تحميل SVG للطباعة الكبيرة</button>
             <button type="button" data-export="print"><svg class="ic"><use href="#i-print"/></svg>طباعة</button>
@@ -100,11 +88,11 @@
 </main>
 <dialog class="modal" id="codeModal"></dialog>
 <div class="toasts" id="toasts" aria-live="polite"></div>
-<script src="assets/js/icons.js?v=18"></script>
-<script src="assets/js/app.js?v=18"></script>
+<script src="assets/js/icons.js?v=19"></script>
+<script src="assets/js/app.js?v=19"></script>
 <script src="assets/vendor/d3.min.js"></script>
-<script src="assets/js/tree.js?v=18"></script>
-<script src="assets/js/tree-page.js?v=18"></script>
-<script type="module" src="assets/js/public.js?v=18"></script>
+<script src="assets/js/tree.js?v=19"></script>
+<script src="assets/js/tree-page.js?v=19"></script>
+<script type="module" src="assets/js/public.js?v=19"></script>
 </body>
 </html>

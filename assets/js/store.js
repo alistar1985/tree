@@ -11,7 +11,7 @@ import {
 import {
   getDatabase, ref, get, update, push, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast, equalTo,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js?v=18';
+import { firebaseConfig } from './firebase-config.js?v=19';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

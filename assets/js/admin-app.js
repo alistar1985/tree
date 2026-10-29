@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=18';
+import * as S from './store.js?v=19';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -301,8 +301,13 @@ PAGES.review = async (tab = 'subs') => {
 };
 
 /* ───────────── الأفراد ───────────── */
-PAGES.people = async (arg, sub) => {
-  if (arg && !/^p\d+$/.test(arg) && P(arg)) return personEdit(+arg);
+PAGES.people = async (arg) => {
+  if (arg && /^\d+$/.test(arg)) {
+    if (P(arg)) return personEdit(+arg);
+    setTitle('غير موجود', 'users');
+    view().innerHTML = `<div class="pe-card">${empty('search', 'هذا الشخص غير موجود (ربما حُذف أو دُمج)')}<a class="btn btn-outline" href="#people">${icon('users')}كل الأفراد</a></div>`;
+    return;
+  }
   setTitle('الأفراد', 'users');
   const page = arg ? +arg.slice(1) : 1;
   const qs = new URLSearchParams(sessionStorage.getItem('people-filter') || '');
@@ -311,71 +316,100 @@ PAGES.people = async (arg, sub) => {
   if (hf) rows = rows.filter((id) => S.inScope(id, +hf));
   if (by) rows = rows.filter((id) => P(id).by && P(id).by.l === by);
   if (!q || sort !== 'recent') rows.sort((a, b) => (sort === 'name' ? P(a).k.localeCompare(P(b).k) : sort === 'gen' ? S.depthOf(a) - S.depthOf(b) || a - b : (P(b).at || 0) - (P(a).at || 0) || b - a));
-  const per = 50;
+  const per = 40;
   const slice = rows.slice((page - 1) * per, page * per);
-  const roots = [...state.map.values()].filter((p) => p.p == null);
-  view().innerHTML = panel('إضافة أفراد', 'user-plus', `<form class="panel-body form-grid" data-form="people-add">
-      <label class="field"><span>الأب</span>${picker('parent', 'ابحث عن الأب…')}<small>إن تركته فارغاً يُضاف الأبناء تحت الجد الأكبر.</small></label>
-      <label class="field"><span>الأسماء</span><input name="names" placeholder="مثال: علي، حسن، محمد" required></label>
-      <div class="full"><button class="btn btn-primary btn-sm" type="submit">${icon('plus')}إضافة</button></div></form>
-      <form class="panel-body" style="border-top:1px dashed var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:end" data-form="ancestor">
-      <label class="field" style="margin:0;flex:1;min-width:220px"><span>إضافة جد أعلى فوق «${esc(roots.map((r) => r.n).join('، '))}» (لإكمال سلسلة الأجداد للأعلى)</span><input name="name" placeholder="اسم أبي الجد الأكبر الحالي" required></label>
-      <button class="btn btn-outline btn-sm" type="submit">${icon('arrow-up')}إضافة جد أعلى</button></form>`, '', 'اختر الأب ثم اكتب أسماء الأبناء مفصولة بفاصلة.')
-    + `<section class="panel"><form class="filters" data-form="people-filter">
-      <label class="field" style="flex:1"><span>بحث (الاسم ثم الأب ثم الجد)</span><input type="search" name="q" value="${esc(q)}" placeholder="مثال: علي عبد الحليم"></label>
-      <label class="field"><span>البيت</span><select name="house"><option value="">كل البيوت</option>${houses().map((h) => `<option value="${h.id}" ${+hf === h.id ? 'selected' : ''}>${esc(h.house || 'بيت ' + h.n)}</option>`).join('')}</select></label>
-      <label class="field"><span>الترتيب</span><select name="sort"><option value="recent">الأحدث</option><option value="name" ${sort === 'name' ? 'selected' : ''}>الاسم</option><option value="gen" ${sort === 'gen' ? 'selected' : ''}>الجيل</option></select></label>
-      ${by ? `<span class="badge badge-info">أضافه: ${esc(by)}</span><input type="hidden" name="by" value="${esc(by)}">` : ''}
-      <button class="btn btn-sm btn-primary" type="submit">${icon('filter')}تصفية</button><button class="btn btn-sm btn-outline" type="button" data-act="csv">${icon('download')}CSV</button></form>
-      <div class="table-wrap"><table class="t"><thead><tr><th>الاسم والنسب</th><th>الجيل</th><th>البيت</th><th>الأبناء</th><th>أضافه</th><th>التاريخ</th><th></th></tr></thead><tbody>
-      ${slice.map((id) => { const p = P(id), h = S.houseOf(id); return `<tr><td class="nm"><b>${S.isHouse(id) ? icon('crown') + ' ' : ''}${esc(p.n)}${p.fl ? ' <span class="badge badge-info">غير مربوط</span>' : ''}</b><small>${esc(S.nasab(id, 6))}</small></td>
-        <td class="num">${S.depthOf(id)}</td><td>${h != null ? `<span class="swatch" style="background:${esc(P(h).hc || '#d9ae22')}"></span> ${esc(S.houseName(h))}` : '—'}</td><td class="num">${S.kidsOf(id).length}</td>
-        <td><small>${esc(p.by ? p.by.l : '')}</small></td><td class="num"><small>${S.fmtDt(p.at, false)}</small></td>
-        <td><div class="acts"><a class="btn btn-xs btn-outline" href="#people/${id}">${icon('edit')}تعديل</a><a class="btn btn-xs btn-ghost" href="./?focus=${id}" target="_blank">${icon('tree')}</a></div></td></tr>`; }).join('') || `<tr><td colspan="7">${empty('search', 'لا توجد نتائج')}</td></tr>`}
-      </tbody></table></div>${pager(rows.length, page, per, (i) => '#people/p' + i)}</section>`;
+  view().innerHTML = `<div class="pe">
+    <form class="pe-card pl-search" data-form="people-filter">
+      <div class="pe-inline"><input type="search" name="q" value="${esc(q)}" placeholder="ابحث: الاسم ثم الأب ثم الجد…" autofocus><button class="btn btn-primary" type="submit">${icon('search')}</button></div>
+      <details class="pe-more" ${hf || sort !== 'recent' || by ? 'open' : ''}><summary>تصفية وترتيب</summary>
+        <div class="pe-row"><label class="field"><span>البيت</span><select name="house"><option value="">كل البيوت</option>${houses().map((h) => `<option value="${h.id}" ${+hf === h.id ? 'selected' : ''}>${esc(S.houseName(h.id))}</option>`).join('')}</select></label>
+        <label class="field"><span>الترتيب</span><select name="sort"><option value="recent">الأحدث إضافة</option><option value="name" ${sort === 'name' ? 'selected' : ''}>الاسم</option><option value="gen" ${sort === 'gen' ? 'selected' : ''}>الجيل</option></select></label></div>
+        ${by ? `<p><span class="badge badge-info">أضافه: ${esc(by)}</span><input type="hidden" name="by" value="${esc(by)}"></p>` : ''}
+        <button class="btn btn-sm btn-ghost" type="button" data-act="csv">${icon('download')}تحميل القائمة (CSV)</button></details>
+    </form>
+    <details class="pe-card pl-add"><summary>${icon('user-plus')}إضافة أبناء لشخص</summary>
+      <form class="pe-form" data-form="people-add" style="margin-top:12px">
+        <label class="field"><span>الأب</span>${picker('parent', 'ابحث عن الأب…')}</label>
+        <label class="field"><span>أسماء الأبناء (افصلها بفاصلة)</span><input name="names" placeholder="علي، حسن، محمد" required></label>
+        <button class="btn btn-primary" type="submit">${icon('plus')}إضافة</button></form></details>
+    <section class="pe-card pl-list"><h3>${icon('users')}${q ? `نتائج «${esc(q)}»` : 'كل الأفراد'} <small class="muted">(${rows.length})</small></h3>
+      ${slice.map((id) => { const p = P(id); return `<a class="pl-item" href="#people/${id}"><span class="pe-av sm">${esc(p.n.trim()[0] || '؟')}</span>
+        <span class="pl-txt"><b>${S.isHouse(id) ? icon('crown') : ''}${esc(p.n)}${p.fl ? ' <span class="badge badge-info">غير مربوط</span>' : ''}</b><small>${esc(S.nasab(id, 6).split(' ').slice(1).join(' ') || 'أعلى جد')}</small></span>
+        <span class="pl-k">${S.kidsOf(id).length ? S.kidsOf(id).length + ' أبناء' : ''}</span>${icon('chev-l')}</a>`; }).join('') || empty('search', 'لا توجد نتائج')}
+      ${pager(rows.length, page, per, (i) => '#people/p' + i)}</section>
+  </div>`;
   bindPickers(view());
 };
 
 async function personEdit(id) {
   const p = P(id);
-  setTitle('تعديل: ' + p.n, 'edit');
+  setTitle(p.n, 'user');
   const phone = (await get(ref(db, 'private/' + id + '/phone'))).val() || '';
   const hist = (await get(query(ref(db, 'audit'), orderByChild('eid'), equalTo(id)))).val() || {};
   const history = Object.values(hist).sort((a, b) => b.at - a.at).slice(0, 30);
   const kids = S.kidsOf(id), desc = S.descendants(id);
-  view().innerHTML = `<div class="panel"><div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <div class="nasab-chain">${S.lineage(id).map((x, i) => `${i ? '<i>‹</i>' : ''}<a class="badge ${i ? '' : 'badge-ok'}" href="#people/${x}">${esc(P(x).n)}</a>`).join('')}</div>
-      <span class="badge badge-muted">الجيل ${S.genOrdinal(S.depthOf(id))}</span><span class="badge badge-muted">${kids.length} أبناء · ${desc.length} ذرية</span>
-      ${p.fl ? '<span class="badge badge-info">فرع لم يُربط بأجداده بعد</span>' : ''}<a class="btn btn-xs btn-outline" href="./?focus=${id}" target="_blank">${icon('tree')}في الشجرة</a></div></div>
-    <div class="grid-panels c2">
-      <form class="panel" data-form="person-save" data-id="${id}"><div class="panel-head"><h2>${icon('user')}البيانات</h2></div><div class="panel-body form-grid">
-        <label class="field"><span>الاسم</span><input name="name" value="${esc(p.n)}" required></label>
-        <label class="field"><span>الكنية / اللقب</span><input name="nickname" value="${esc(p.nick || '')}"></label>
-        <label class="field"><span>سنة الميلاد</span><input name="birth_year" inputmode="numeric" value="${esc(p.b || '')}"></label>
-        <label class="field"><span>سنة الوفاة</span><input name="death_year" inputmode="numeric" value="${esc(p.y || '')}"></label>
-        <label class="field"><span>الجنس</span><select name="gender"><option value="m">ذكر</option><option value="f" ${p.g === 'f' ? 'selected' : ''}>أنثى</option></select></label>
-        <label class="field"><span>الترتيب بين الإخوة</span><input type="number" name="sort_order" value="${p.o || 0}"></label>
-        <label class="field"><span>الهاتف (خاص)</span><input name="phone" dir="ltr" value="${esc(phone)}"></label>
-        <div class="field"><span>&nbsp;</span><label class="check"><input type="checkbox" name="is_deceased" ${p.dead ? 'checked' : ''}><span>متوفى (رحمه الله)</span></label></div>
-        <div class="full" style="border:1px dashed var(--line-strong);border-radius:14px;padding:12px 14px 2px;margin-bottom:14px">
-          <div class="field"><span><b>البيت</b> — ${S.isHouse(id) ? `${icon('crown')} «${esc(S.houseName(id))}» بيت حالياً` : 'ليس بيتاً حالياً'}</span>${houseModeSeg(id)}</div>
-          <div class="form-grid"><label class="field"><span>اسم البيت</span><input name="house_name" value="${esc(p.house || '')}" placeholder="بيت ${esc(p.n)}"></label><label class="field"><span>لون البيت</span><input type="color" name="house_color" value="${esc(p.hc || '#c0392b')}"></label></div></div>
-        <label class="field full"><span>نبذة</span><textarea name="bio" rows="3">${esc(p.bio || '')}</textarea></label>
-        <div class="full sub-meta"><span>${icon('user-plus')}أضافه: ${esc(p.by ? p.by.l : '—')} · ${S.fmtDt(p.at)}</span>${p.ub ? `<span>${icon('edit')}آخر تعديل: ${esc(p.ub.l)} · ${S.fmtDt(p.ub.at)}</span>` : ''}</div>
-      </div><div class="save-bar"><button class="btn btn-primary" type="submit">${icon('check')}حفظ التعديلات</button></div></form>
-      <div style="display:grid;gap:18px;align-content:start">
-        ${panel('الأبناء', 'users', `<div class="panel-body"><div class="kids" style="margin-bottom:12px">${kids.map((c) => `<a class="badge" href="#people/${c}">${S.isHouse(c) ? icon('crown') : ''}${esc(P(c).n)}</a>`).join('') || '<span class="muted">لا يوجد أبناء</span>'}</div>
-          <form style="display:flex;gap:8px" data-form="kids-add" data-id="${id}"><input name="names" placeholder="أسماء الأبناء مفصولة بفاصلة" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form></div>`)}
-        ${panel('نقل ودمج', 'move', `<div class="panel-body">${p.p != null ? `<form style="margin-bottom:14px" data-form="move" data-id="${id}"><label class="field"><span>${p.fl ? 'ربطه بأبيه الحقيقي' : 'نقل مع ذريته تحت أب آخر'}</span>${picker('parent', 'ابحث عن الأب الجديد…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('move')}نقل</button></form>` : ''}
-          <form data-form="merge" data-id="${id}"><label class="field"><span>دمج هذا الشخص (المكرر) في الشخص الصحيح</span>${picker('target', 'ابحث عن الشخص الصحيح…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('merge')}دمج</button></form></div>`)}
-        ${panel('إضافة اسم في السلسلة', 'plus', `<div class="panel-body" style="display:grid;gap:10px">
-          <form style="display:flex;gap:8px" data-form="insert-parent" data-id="${id}"><input name="name" placeholder="${p.p != null && P(p.p) ? `اسم قبله (بين «${esc(P(p.p).n)}» و«${esc(p.n)}»)` : `اسم قبله (جد أعلى من «${esc(p.n)}»)`}" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}قبله</button></form>
-          ${kids.length ? `<form style="display:flex;gap:8px" data-form="insert-child" data-id="${id}"><input name="name" placeholder="اسم بعده (بين «${esc(p.n)}» وأبنائه)" required><button class="btn btn-sm btn-outline" type="submit">${icon('plus')}بعده</button></form>` : ''}</div>`)}
-        ${kids.length && p.p != null ? panel('حذفه وإبقاء أبنائه', 'link', `<div class="panel-body"><p class="muted" style="margin:0 0 10px">إن كان الاسم خطأً: يُحذف «${esc(p.n)}» وحده ويرتبط أبناؤه (${kids.map((c) => esc(P(c).n)).join('، ')}) بـ «${esc(P(p.p) ? P(p.p).n : '')}» مباشرة.</p><button class="btn btn-sm btn-danger-soft" data-act="unlink" data-id="${id}">${icon('trash')}حذف وربط الأبناء</button></div>`) : ''}
-        ${panel('حذف', 'trash', `<div class="panel-body"><form class="danger-zone" data-form="delete" data-id="${id}" data-desc="${desc.length}">${desc.length ? `<label class="check"><input type="checkbox" name="with_desc" required><span>أفهم أن الحذف يشمل ${desc.length} من ذريته</span></label>` : ''}<button class="btn btn-sm btn-danger" type="submit">${icon('trash')}حذف «${esc(p.n)}»</button></form></div>`)}
-      </div></div>
-    ${panel('سجل هذا الشخص', 'history', `<div class="feed">${history.map((h) => `<div class="feed-item"><span class="feed-dot ${(ACTIONS[h.a] || [])[1] || ''}">${icon('history')}</span><div><p>${badgeAct(h.a)} ${esc(h.s)}</p><small>${esc(h.l)} · ${S.fmtDt(h.at)} · ${esc(h.dev || '')}</small></div></div>`).join('') || empty('history', 'لا توجد عمليات مسجلة')}</div>`)}`;
+  const par = p.p != null && P(p.p) ? P(p.p) : null;
+  const house = S.isHouse(id), hOf = S.houseOf(id);
+  const hasBirth = kids.some((k) => P(k).b);
+  const card = (title, ic, body, cls = '') => `<section class="pe-card ${cls}"><h3>${icon(ic)}${title}</h3>${body}</section>`;
+  view().innerHTML = `<div class="pe">
+    <header class="pe-card pe-head">
+      <span class="pe-av">${esc(p.n.trim()[0] || '؟')}</span>
+      <div class="pe-id"><h2>${house ? icon('crown') : ''}${esc(p.n)}</h2>
+        <nav class="pe-chain">${S.lineage(id).slice(1, 8).map((x) => `<a href="#people/${x}">${esc(P(x).n)}</a>`).join('<i>‹</i>') || '<span class="muted">أعلى جد في الشجرة</span>'}</nav>
+        <div class="pe-meta"><span>الجيل ${S.genOrdinal(S.depthOf(id))}</span><span>${kids.length} أبناء</span><span>${desc.length} ذرية</span>${hOf != null ? `<span>${esc(S.houseName(hOf))}</span>` : ''}${p.fl ? '<span class="warn">غير مربوط بأجداده</span>' : ''}</div></div>
+      <a class="btn btn-sm btn-outline" href="./?focus=${id}" target="_blank">${icon('tree')}<span class="hide-sm">في الشجرة</span></a>
+    </header>
+
+    ${card('الاسم والبيانات', 'edit', `<form class="pe-form" data-form="person-save" data-id="${id}">
+      <label class="field"><span>الاسم</span><input name="name" value="${esc(p.n)}" required></label>
+      <div class="pe-row"><label class="field"><span>سنة الميلاد</span><input name="birth_year" inputmode="numeric" value="${esc(p.b || '')}" placeholder="مثال: 1975"></label>
+        <label class="check pe-dead"><input type="checkbox" name="is_deceased" ${p.dead ? 'checked' : ''}><span>متوفى رحمه الله</span></label></div>
+      <div class="field"><span>البيت</span>${houseModeSeg(id)}</div>
+      ${house ? `<div class="pe-row"><label class="field"><span>اسم البيت</span><input name="house_name" value="${esc(p.house || '')}" placeholder="بيت ${esc(p.n)}"></label><label class="field" style="max-width:110px"><span>اللون</span><input type="color" name="house_color" value="${esc(p.hc || '#c0392b')}"></label></div>` : ''}
+      <details class="pe-more"><summary>بيانات إضافية</summary>
+        <div class="pe-row"><label class="field"><span>اللقب / الكنية</span><input name="nickname" value="${esc(p.nick || '')}"></label><label class="field"><span>سنة الوفاة</span><input name="death_year" inputmode="numeric" value="${esc(p.y || '')}"></label></div>
+        <label class="field"><span>الهاتف (خاص لا يظهر)</span><input name="phone" dir="ltr" inputmode="tel" value="${esc(phone)}"></label>
+        <label class="field"><span>نبذة</span><textarea name="bio" rows="2">${esc(p.bio || '')}</textarea></label></details>
+      <button class="btn btn-primary pe-save" type="submit">${icon('check')}حفظ</button></form>`)}
+
+    ${card(`الأبناء${kids.length ? ` (${kids.length})` : ''}`, 'users', `${kids.length ? `
+      ${kids.length > 1 ? `<div class="pe-ord-bar"><button type="button" class="btn btn-sm btn-outline" data-act="ord-start">${icon('layers')}ترتيب من الأكبر</button>${hasBirth ? `<button type="button" class="btn btn-sm btn-ghost" data-act="ord-birth">${icon('calendar')}حسب سنة الميلاد</button>` : ''}</div>
+      <div class="pe-ord-help" hidden><span>اضغط على الأبناء بالترتيب: أول ضغطة = الأكبر، ثم الذي بعده…</span><span class="pe-ord-acts"><button type="button" class="btn btn-sm btn-primary" data-act="ord-save" data-id="${id}">${icon('check')}حفظ الترتيب</button><button type="button" class="btn btn-sm btn-ghost" data-act="ord-reset">إعادة</button><button type="button" class="btn btn-sm btn-ghost" data-act="ord-cancel">إلغاء</button></span></div>` : ''}
+      <div class="pe-kids" data-kids="${id}">${kids.map((k, i) => `<div class="pe-kid" role="button" tabindex="0" data-kid="${k}"><b class="pe-num">${i + 1}</b><span class="pe-kn">${esc(P(k).n)}</span>${P(k).b ? `<small>${P(k).b}</small>` : ''}<span class="pe-open">${icon('chev-l')}</span></div>`).join('')}</div>` : '<p class="muted" style="margin:0 0 10px">لا يوجد أبناء بعد.</p>'}
+      <form class="pe-inline" data-form="kids-add" data-id="${id}"><input name="names" placeholder="أضف أبناء: علي، حسن…" required><button class="btn btn-sm btn-primary" type="submit">${icon('plus')}إضافة</button></form>`)}
+
+    ${card('اسم ناقص في السلسلة', 'link', `
+      <form class="pe-inline" data-form="insert-parent" data-id="${id}"><input name="name" placeholder="${par ? `اسم بين «${esc(par.n)}» و«${esc(p.n)}»` : `جد أعلى من «${esc(p.n)}»`}" required><button class="btn btn-sm btn-outline" type="submit">${icon('plus')}قبله</button></form>
+      ${kids.length ? `<form class="pe-inline" data-form="insert-child" data-id="${id}"><input name="name" placeholder="اسم بين «${esc(p.n)}» وأبنائه" required><button class="btn btn-sm btn-outline" type="submit">${icon('plus')}بعده</button></form>` : ''}`)}
+
+    ${card('تصحيح الربط', 'move', `
+      <form data-form="move" data-id="${id}"><label class="field"><span>${p.fl ? 'ربطه بأبيه الحقيقي' : `أبوه الصحيح (الآن: ${esc(par ? par.n : '—')})`}</span>${picker('parent', 'ابحث عن الأب الصحيح…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('move')}نقله مع ذريته</button></form>
+      <form data-form="merge" data-id="${id}" style="margin-top:12px"><label class="field"><span>هذا الاسم مكرر؟ ادمجه في الصحيح</span>${picker('target', 'ابحث عن الشخص الصحيح…')}</label><button class="btn btn-sm btn-outline" type="submit">${icon('merge')}دمج</button></form>`)}
+
+    ${card('حذف', 'trash', `<div class="pe-del">
+      ${kids.length && par ? `<button class="btn btn-sm btn-danger-soft" data-act="unlink" data-id="${id}">${icon('trash')}حذفه وحده (يرتبط أبناؤه بـ«${esc(par.n)}»)</button>` : ''}
+      <form data-form="delete" data-id="${id}" data-desc="${desc.length}">${desc.length ? '<input type="hidden" name="with_desc" value="1">' : ''}<button class="btn btn-sm btn-ghost" type="submit" style="color:var(--danger)">${icon('trash')}${desc.length ? `حذفه مع ذريته (${desc.length})` : 'حذف'}</button></form></div>
+      <small class="muted">أي حذف يمكن التراجع عنه من سجل العمليات.</small>`, 'pe-danger')}
+
+    <details class="pe-card pe-hist"><summary>${icon('history')}سجل التعديلات (${history.length})</summary><div class="feed">${history.map((h) => `<div class="feed-item"><span class="feed-dot ${(ACTIONS[h.a] || [])[1] || ''}">${icon('history')}</span><div><p>${badgeAct(h.a)} ${esc(h.s)}</p><small>${esc(h.l)} · ${S.fmtDt(h.at)}</small></div></div>`).join('') || empty('history', 'لا توجد عمليات')}</div></details>
+  </div>`;
+  ordPicked = null;
   bindPickers(view());
+}
+
+/* ترتيب الأبناء بالضغط: أول ضغطة = الأكبر، والضغط مرة ثانية يلغي الاختيار */
+let ordPicked = null;
+function ordPaint(box) {
+  $$('[data-kid]', box).forEach((b, i) => {
+    const at = ordPicked ? ordPicked.indexOf(+b.dataset.kid) : -1;
+    b.classList.toggle('picked', at >= 0);
+    b.querySelector('.pe-num').textContent = ordPicked ? (at >= 0 ? at + 1 : '') : i + 1;
+  });
+  box.classList.toggle('ordering', !!ordPicked);
+  const help = view().querySelector('.pe-ord-help'), bar = view().querySelector('.pe-ord-bar');
+  if (help) help.hidden = !ordPicked;
+  if (bar) bar.hidden = !!ordPicked;
 }
 
 /* ───────────── الأجداد الرئيسيون (الجذع) ─────────────
@@ -688,21 +722,6 @@ document.addEventListener('submit', async (e) => {
       if (n) toast('تمت إضافة ' + S.arCount(n, 'اسم واحد', 'اسمين', 'أسماء', 'اسماً'));
       return route();
     }
-    if (kind === 'ancestor') {
-      const name = App.Names.clean(val('name'));
-      const err = S.nameError(name);
-      if (err) return toast(err, 'err');
-      const roots = [...state.map.values()].filter((p) => p.p == null);
-      if (!(await App.confirm({ title: 'جد أعلى', text: `سيصبح «${name}» الجد الأكبر، وينتقل الجد الحالي وكل الشجرة تحته.`, ok: 'متابعة' }))) return;
-      await run(async () => {
-        const [nid] = await S.allocIds(1);
-        const u = { ['persons/' + nid]: { n: name, k: App.Names.key(name), path: '/', o: 1, by: { t: 'admin', id: state.admin.uid, l: S.actor().l }, at: TS() } };
-        roots.forEach((r) => { u[`persons/${r.id}/p`] = nid; u[`persons/${r.id}/path`] = '/' + nid + '/'; u[`persons/${r.id}/fl`] = null; S.descendants(r.id).forEach((d) => { u[`persons/${d}/path`] = '/' + nid + P(d).path; }); });
-        auditAdmin(u, 'create', 'person', nid, `أضاف «${name}» جداً أعلى فوق «${roots.map((r) => r.n).join('، ')}»`);
-        await S.commit(u);
-      }, `أصبح «${name}» الجد الأكبر للشجرة`);
-      return route();
-    }
     if (kind === 'person-save') {
       const data = Object.fromEntries(fd);
       const hm = fd.get('house_mode') || 'auto';
@@ -766,8 +785,9 @@ document.addEventListener('submit', async (e) => {
     }
     if (kind === 'delete') {
       if (+f.dataset.desc && !fd.get('with_desc')) return toast('أكّد حذف الذرية أولاً', 'err');
-      if (!(await App.confirm({ title: 'حذف', text: 'يمكن الاستعادة لاحقاً من سجل العمليات.', danger: true, ok: 'حذف' }))) return;
-      if (await run(() => S.deletePerson(id, true), 'تم الحذف')) go('people');
+      const nd = +f.dataset.desc, back = P(id).p;
+      if (!(await App.confirm({ title: `حذف «${P(id).n}»`, text: (nd ? `سيُحذف مع ${nd} من ذريته. ` : '') + 'يمكن الاستعادة لاحقاً من سجل العمليات.', danger: true, ok: 'حذف' }))) return;
+      if (await run(() => S.deletePerson(id, true), 'تم الحذف')) go(back != null && P(back) ? 'people/' + back : 'people');
       return;
     }
     if (kind === 'house-save') {
@@ -832,6 +852,15 @@ document.addEventListener('change', (e) => {
   const f = e.target.closest('form[data-form="trunk-rename"]');
   if (f && root.contains(f)) f.requestSubmit();
 });
+document.addEventListener('click', (e) => {
+  const kid = e.target.closest('[data-kid]');
+  if (!kid || !root.contains(kid)) return;
+  e.preventDefault();
+  if (!ordPicked) { go('people/' + kid.dataset.kid); return; } // خارج وضع الترتيب: يفتح صفحة الابن
+  const k = +kid.dataset.kid, at = ordPicked.indexOf(k);
+  if (at >= 0) ordPicked.splice(at, 1); else ordPicked.push(k);
+  ordPaint(kid.closest('[data-kids]'));
+}, true);
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]');
   if (!b || !root.contains(b) || b.tagName === 'SELECT') return;
@@ -867,6 +896,23 @@ document.addEventListener('click', async (e) => {
   if (act === 'confirm-link') { if (await run(() => S.movePerson(id, +b.dataset.parent), 'تم تأكيد الربط')) route(); }
   if (act === 'make-house') { if (await run(() => S.setHouseMode(id, 'on'), 'أصبح بيتاً')) route(); }
   if (act === 'unhouse') { if (await App.confirm({ title: 'إلغاء البيت', text: `«${S.houseName(id)}» لن يبقى بيتاً، ولن يُحذف أي فرد. يمكنك إرجاعه لاحقاً.`, ok: 'إلغاء البيت' }) && await run(() => S.setHouseMode(id, 'off'), 'أُلغي البيت')) route(); }
+  if (act === 'ord-start' || act === 'ord-birth' || act === 'ord-reset') {
+    const box = view().querySelector('[data-kids]');
+    const ids = $$('[data-kid]', box).map((x) => +x.dataset.kid);
+    // حسب المواليد: من له سنة ميلاد يُرتب بها، ومن ليس له يبقى بعدهم بترتيبه الحالي
+    ordPicked = act === 'ord-birth' ? ids.filter((k) => P(k).b).sort((x, y) => P(x).b - P(y).b).concat(ids.filter((k) => !P(k).b)) : [];
+    ordPaint(box);
+    if (act === 'ord-birth') toast('رُتّبوا حسب سنة الميلاد — راجع ثم اضغط «حفظ الترتيب»');
+    return;
+  }
+  if (act === 'ord-cancel') { ordPicked = null; ordPaint(view().querySelector('[data-kids]')); return; }
+  if (act === 'ord-save') {
+    const box = view().querySelector('[data-kids]');
+    const ids = $$('[data-kid]', box).map((x) => +x.dataset.kid);
+    const list = (ordPicked || []).concat(ids.filter((k) => !(ordPicked || []).includes(k)));
+    if (await run(() => S.setOrder(id, list), 'تم حفظ ترتيب الأبناء')) { ordPicked = null; route(); }
+    return;
+  }
   if (act === 'trunk-up' || act === 'trunk-down') {
     const a = act === 'trunk-up' ? id : P(id).p;
     if (a != null && await run(() => S.swapWithChild(a))) route();
