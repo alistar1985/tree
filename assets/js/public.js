@@ -2,7 +2,7 @@
    تهيئة الصفحات العامة: عنوان الموقع، أدوات الرأس، نافذة الرمز، وضع الصيانة، وتسجيل الزيارة.
    ========================================================================== */
 /* global App */
-import { ready, state, trackVisit, watchRev } from './store.js?v=21';
+import { ready, state, trackVisit, watchRev } from './store.js?v=22';
 
 const { esc, icon } = App;
 const page = document.body.dataset.page || 'tree';
@@ -22,7 +22,7 @@ if (!state.installed) {
   const tools = document.getElementById('headerTools');
   if (tools) {
     const cta = page === 'add'
-      ? `<a class="btn btn-outline btn-sm header-cta" href="./">${icon('tree')}الشجرة</a>`
+      ? `<a class="btn btn-outline btn-sm header-cta" href="tree">${icon('tree')}الشجرة</a>`
       : `<a class="btn btn-gold btn-sm header-cta" href="add">${icon('user-plus')}أضف نسبك</a>`;
     const who = v.type === 'admin'
       ? `<a class="chip chip-admin" href="admin" title="لوحة التحكم">${icon('dashboard')}<span>لوحة التحكم</span></a>`
@@ -45,7 +45,7 @@ if (!state.installed) {
         <div class="code-status"><div class="code-badge">${icon('shield')}</div><div><b>أنت تعمل برمز: ${esc(c.holder)}</b>
         <span>النطاق: ${c.scope != null && c.scope !== '' ? 'بيت/فرع محدد' : 'الشجرة كاملة'}</span><span class="perm-list">${perms}</span></div></div>
         <footer class="modal-foot">
-          ${c.approve ? `<a class="btn btn-ghost" href="./?pending=1">${icon('inbox')}الطلبات</a>` : ''}
+          ${c.approve ? `<a class="btn btn-ghost" href="tree?pending=1">${icon('inbox')}الطلبات</a>` : ''}
           <button class="btn btn-danger-soft" type="button" data-code-logout>${icon('logout')}إنهاء الجلسة</button>
         </footer></form>`;
     } else {
@@ -57,6 +57,7 @@ if (!state.installed) {
     }
   }
 
+  document.documentElement.classList.remove('booting');
   // وضع الصيانة: يظهر للزوار فقط، والمالك يتصفح ويعمل كالمعتاد
   if (s.maintenance && v.type !== 'admin') {
     document.body.insertAdjacentHTML('beforeend', `<div class="maint">

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>شجرة العشيرة</title>
+<meta name="description" content="شجرة نسب العشيرة: ابحث عن اسمك وأضف نسبك">
+<meta name="theme-color" content="#2f5d1e">
+<meta name="base" content=".">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/css/main.css?v=22">
+<script>try{var t=localStorage.getItem('clan-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}document.documentElement.classList.add('booting');setTimeout(function(){document.documentElement.classList.remove('booting')},6000);</script>
+</head>
+<body class="is-app page-tree" data-page="tree">
+<header class="site-header compact">
+  <div class="wrap header-in">
+    <a class="brand" href="tree"><span data-logo="34"></span><span class="brand-txt"><b data-bind="site_title">شجرة العشيرة</b></span></a>
+    <div class="header-tools" id="headerTools"></div>
+  </div>
+</header>
+
+<main class="tree-app" id="treeApp">
+  <aside class="tree-side" id="treeSide" aria-label="البيوت">
+    <button class="icon-btn side-close" type="button" data-side-close title="إغلاق"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="side-head">
+      <h2><svg class="ic"><use href="#i-house"/></svg>البيوت والفروع</h2>
+      <input type="search" id="houseFilter" placeholder="ابحث عن بيت…" autocomplete="off">
+    </div>
+    <div class="side-list" id="houseList"><div class="sr-empty">جارِ التحميل…</div></div>
+    <div class="side-foot">
+      <div><b id="stPersons">—</b><span>فرداً</span></div>
+      <div><b id="stHouses">—</b><span>بيتاً</span></div>
+      <div><b id="stGens">—</b><span>جيلاً</span></div>
+    </div>
+  </aside>
+
+  <section class="tree-stage">
+    <div class="tree-topbar">
+      <button class="icon-btn" type="button" id="sideToggle" title="البيوت"><svg class="ic"><use href="#i-house"/></svg></button>
+      <div class="tree-crumbs">
+        <div style="min-width:0">
+          <h1 id="viewTitle" data-bind="site_title">شجرة العشيرة</h1>
+          <div class="crumb-path" id="crumbPath"></div>
+        </div>
+      </div>
+      <div class="tree-search">
+        <svg class="ic"><use href="#i-search"/></svg>
+        <input id="treeSearch" type="search" placeholder="ابحث بالاسم… مثال: علي عبد الحليم" autocomplete="off">
+        <div class="search-results" id="treeSearchResults" hidden></div>
+      </div>
+      <div class="tool-group view-tools">
+        <div class="menu-wrap">
+          <button class="icon-btn" type="button" id="exportBtn" title="حفظ وطباعة ومشاركة"><svg class="ic"><use href="#i-share"/></svg></button>
+          <div class="menu tools-menu" id="exportMenu" hidden>
+            <div class="menu-sec">حفظ ومشاركة</div>
+            <button type="button" data-export="png"><svg class="ic"><use href="#i-image"/></svg>تحميل كلوحة (صورة PNG)</button>
+            <button type="button" data-export="svg"><svg class="ic"><use href="#i-download"/></svg>تحميل SVG للطباعة الكبيرة</button>
+            <button type="button" data-export="print"><svg class="ic"><use href="#i-print"/></svg>طباعة</button>
+            <button type="button" data-export="share"><svg class="ic"><use href="#i-share"/></svg>نسخ رابط هذا العرض</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tree-body">
+      <div class="tree-canvas" id="treeCanvas">
+        <div class="tree-loading"><div><div class="spinner"></div>جارِ رسم الشجرة…</div></div>
+      </div>
+      <div class="edit-banner" id="editBanner" hidden></div>
+      <div class="empty-hint" id="emptyHint" hidden>
+        <svg class="ic"><use href="#i-leaf"/></svg>
+        <b>الشجرة في بدايتها</b>
+        <span>أضف اسمك ونسبك لتكون من أوائل المسجّلين.</span>
+        <a class="btn btn-gold" href="add"><svg class="ic"><use href="#i-user-plus"/></svg>أضف نسبك</a>
+      </div>
+      <div class="legend" id="legend" hidden></div>
+      <div class="zoom-ctrl">
+        <button class="icon-btn" type="button" data-zoom="in" title="تكبير"><svg class="ic"><use href="#i-zoom-in"/></svg></button>
+        <button class="icon-btn" type="button" data-zoom="out" title="تصغير"><svg class="ic"><use href="#i-zoom-out"/></svg></button>
+        <button class="icon-btn" type="button" data-zoom="fit" title="ملاءمة الشاشة"><svg class="ic"><use href="#i-fit"/></svg></button>
+      </div>
+      <aside class="drawer" id="drawer" aria-live="polite"></aside>
+    </div>
+  </section>
+</main>
+<dialog class="modal" id="codeModal"></dialog>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="assets/js/icons.js?v=22"></script>
+<script src="assets/js/app.js?v=22"></script>
+<script src="assets/vendor/d3.min.js"></script>
+<script src="assets/js/tree.js?v=22"></script>
+<script src="assets/js/tree-page.js?v=22"></script>
+<script type="module" src="assets/js/public.js?v=22"></script>
+</body>
+</html>

@@ -706,3 +706,6 @@ input[type=color] { width: 52px; height: 40px; padding: 3px; border-radius: 10px
 .d-more { margin-top: 10px; }
 .d-more > summary { cursor: pointer; color: var(--muted); font-size: .86rem; font-weight: 600; }
 .d-more[open] > summary { margin-bottom: 8px; }
+
+/* لا يظهر شيء من الصفحة حتى يُعرف إن كان الموقع في الصيانة (يمنع ظهور الشجرة لحظة ثم رسالة الصيانة) */
+html.booting body > :not(.maint) { visibility: hidden; }

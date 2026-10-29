@@ -146,7 +146,7 @@
 
   function done(r) {
     const box = $('#doneBox');
-    const tree = App.BASE + '/' + (r.self_id ? '?focus=' + r.self_id : '');
+    const tree = App.BASE + '/tree' + (r.self_id ? '?focus=' + r.self_id : '');
     let iconName = 'check', cls = '', title, text;
     if (r.status === 'exists') { title = 'اسمك موجود في الشجرة'; text = 'نسبك مسجل مسبقاً، يمكنك مشاهدته في الشجرة.'; }
     else if (r.status === 'approved') {
@@ -188,7 +188,7 @@
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">${badge[s.status] || ''}<small class="muted">${esc(s.created_at)}</small></div>
           ${s.note ? `<small class="muted">ملاحظة الإدارة: ${esc(s.note)}</small>` : ''}
           <div class="acts">
-            ${s.self_id && s.status === 'approved' ? `<a class="btn btn-xs btn-outline" href="${App.BASE}/?focus=${s.self_id}">${icon('tree')}عرض</a>` : ''}
+            ${s.self_id && s.status === 'approved' ? `<a class="btn btn-xs btn-outline" href="${App.BASE}/tree?focus=${s.self_id}">${icon('tree')}عرض</a>` : ''}
             ${s.status === 'pending' ? `<button class="btn btn-xs btn-danger-soft" type="button" data-cancel>${icon('x')}إلغاء الطلب</button>` : ''}
           </div></div>`).join('');
       card.hidden = false;
