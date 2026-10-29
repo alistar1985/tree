@@ -2,7 +2,7 @@
    تهيئة الصفحات العامة: عنوان الموقع، أدوات الرأس، نافذة الرمز، وضع الصيانة، وتسجيل الزيارة.
    ========================================================================== */
 /* global App */
-import { ready, state, trackVisit, watchRev } from './store.js?v=20';
+import { ready, state, trackVisit, watchRev } from './store.js?v=21';
 
 const { esc, icon } = App;
 const page = document.body.dataset.page || 'tree';
@@ -60,8 +60,8 @@ if (!state.installed) {
   // وضع الصيانة: يظهر للزوار فقط، والمالك يتصفح ويعمل كالمعتاد
   if (s.maintenance && v.type !== 'admin') {
     document.body.insertAdjacentHTML('beforeend', `<div class="maint">
-      <div class="maint-card">${icon('sliders')}<h1>${esc(s.site_title)}</h1><b>الموقع قيد الصيانة</b><p>${esc(s.maintenance_msg || '')}</p>
-      <button class="icon-btn" type="button" data-open="codeModal" title="دخول برمز">${icon('key')}</button></div></div>`);
+      <div class="maint-card">${icon('sliders')}<h1>الموقع تحت الصيانة</h1></div></div>`);
+    document.title = 'الموقع تحت الصيانة';
     document.body.classList.add('in-maint');
   } else if (s.maintenance) {
     document.body.insertAdjacentHTML('afterbegin', `<div class="maint-bar">${icon('alert')} الموقع في وضع الصيانة — الزوار يرون صفحة الصيانة، وأنت ترى الموقع كالمعتاد. <a href="admin#settings/maintenance">إيقاف الصيانة</a></div>`);

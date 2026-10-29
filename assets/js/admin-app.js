@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=20';
+import * as S from './store.js?v=21';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
@@ -667,7 +667,7 @@ PAGES.settings = async (tab = 'general') => {
     <label class="field full"><span>النص الثاني</span><textarea name="verse_2" rows="3" style="font-family:var(--font-quran);font-size:1.1rem">${esc(s.verse_2)}</textarea></label>${inp('verse_2_ref', 'مصدر النص الثاني')}</div>`;
   if (tab === 'maintenance') body = `<div class="radio-cards"><label class="radio-card"><input type="radio" name="maintenance" value="0" ${!s.maintenance ? 'checked' : ''}><span><b>${icon('check')} الموقع يعمل</b><small>الزوار يرون الشجرة ويضيفون أنسابهم.</small></span></label>
     <label class="radio-card"><input type="radio" name="maintenance" value="1" ${s.maintenance ? 'checked' : ''}><span><b>${icon('lock')} وضع الصيانة</b><small>الزوار يرون صفحة «الموقع قيد الصيانة» فقط، وأنت تتصفح وتعمل كالمعتاد.</small></span></label></div>
-    <label class="field"><span>رسالة الصيانة للزوار</span><textarea name="maintenance_msg" rows="2">${esc(s.maintenance_msg)}</textarea></label>${chk('track_visits', 'تسجيل إحصاءات الزوار')}`;
+    ${chk('track_visits', 'تسجيل إحصاءات الزوار')}`;
   if (tab === 'system') body = `<p class="muted">البيانات محفوظة في Firebase (مشروع clan-tree-halaf). يُنصح بتحميل نسخة احتياطية أسبوعياً.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-primary" type="button" data-act="backup">${icon('database')}نسخة كاملة (JSON)</button><button class="btn btn-outline" type="button" data-act="csv">${icon('download')}الأفراد مع النسب (CSV)</button></div>
     ${isOwner() ? `<div class="danger-zone" style="margin-top:18px"><b>تفريغ الشجرة</b><p class="muted" style="font-size:.9rem;margin:4px 0 10px">يحذف جميع الأفراد عدا الجد الأكبر، مع الطلبات. حمّل نسخة احتياطية أولاً.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><input id="wipeConfirm" placeholder="اكتب: حذف" style="max-width:180px"><button class="btn btn-danger btn-sm" type="button" data-act="wipe">${icon('trash')}تفريغ الشجرة</button></div></div>` : ''}`;
@@ -837,7 +837,7 @@ async function saveSettings(f, fd) {
   if (tab === 'tree') { out.default_color_mode = fd.get('default_color_mode'); out.gen_colors = fd.getAll('gen_colors'); ['color_trunk', 'color_root', 'color_leaf', 'color_branch', 'color_head', 'color_son'].forEach((k) => { out[k] = fd.get(k); }); bools(['show_years', 'show_females']); }
   if (tab === 'houses') out.house_min = Math.min(500, Math.max(2, Math.round(+fd.get('house_min') || 20)));
   if (tab === 'verses') pick(['verse_1', 'verse_1_ref', 'verse_2', 'verse_2_ref']);
-  if (tab === 'maintenance') { out.maintenance = fd.get('maintenance') === '1'; pick(['maintenance_msg']); bools(['track_visits']); }
+  if (tab === 'maintenance') { out.maintenance = fd.get('maintenance') === '1'; bools(['track_visits']); }
   const changed = Object.keys(out).filter((k) => JSON.stringify(out[k]) !== JSON.stringify(s[k]));
   if (!changed.length) return toast('لا توجد تغييرات');
   const u = {};
