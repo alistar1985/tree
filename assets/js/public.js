@@ -2,7 +2,7 @@
    تهيئة الصفحات العامة: عنوان الموقع، أدوات الرأس، نافذة الرمز، وضع الصيانة، وتسجيل الزيارة.
    ========================================================================== */
 /* global App */
-import { ready, state, trackVisit, watchRev } from './store.js?v=19';
+import { ready, state, trackVisit, watchRev } from './store.js?v=20';
 
 const { esc, icon } = App;
 const page = document.body.dataset.page || 'tree';
@@ -93,7 +93,9 @@ if (!state.installed) {
     if (ph && s.require_phone && v.type === 'public') ph.textContent = 'رقم الهاتف (مطلوب)';
   }
 
+  // إن فعّل المالك الصيانة أو أوقفها والصفحة مفتوحة: تُعاد لتظهر الحالة الجديدة فوراً
+  window.addEventListener('clan-maint', () => location.reload());
   trackVisit(page);
   // تحديث تلقائي: إن أضاف أحد أسماء جديدة تُعاد الشجرة دون إعادة تحميل الصفحة
-  if (page === 'tree') watchRev(() => window.dispatchEvent(new Event('clan-data')));
+  watchRev(() => { if (page === 'tree') window.dispatchEvent(new Event('clan-data')); });
 }

@@ -11,7 +11,7 @@ import {
 import {
   getDatabase, ref, get, update, push, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast, equalTo,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js';
-import { firebaseConfig } from './firebase-config.js?v=19';
+import { firebaseConfig } from './firebase-config.js?v=20';
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -245,7 +245,7 @@ export function ready() {
         metaP.then((m) => {
           if (!m) return;
           cacheSet('meta', m);
-          if (m.srev !== cm.srev) restGet('settings').then((x) => cacheSet('settings', { rev: m.srev || 0, data: x || {} })).catch(() => {});
+          if (m.srev !== cm.srev) refreshSettings(m.srev);
           if (m.rev !== state.rev) { state.rev = m.rev || 0; state.persons = null; window.dispatchEvent(new Event('clan-data')); }
         });
       } else {
@@ -308,12 +308,22 @@ export async function syncPersons() {
   await loadPersons(false);
   return true;
 }
+/** تحديث الإعدادات المحفوظة؛ وإن تغيّر وضع الصيانة يُعاد تحميل الصفحة حتى يُطبَّق فوراً */
+function refreshSettings(srev) {
+  return restGet('settings').then((x) => {
+    cacheSet('settings', { rev: srev || 0, data: x || {} });
+    if (!!(x || {}).maintenance !== !!state.settings.maintenance) window.dispatchEvent(new Event('clan-maint'));
+  }).catch(() => {});
+}
 /** مراقبة التحديثات: يفحص نسخة البيانات كل دقيقة والصفحة ظاهرة */
 export function watchRev(onChange, every = 60000) {
   const check = async () => {
     if (document.visibilityState !== 'visible') return;
-    const rev = await currentRev();
-    if (rev && rev !== state.rev) { state.rev = rev; state.persons = null; onChange(); }
+    const m = await restGet('meta').catch(() => null);
+    if (!m) return;
+    const cm = cacheGet('meta') || {};
+    if (m.srev && m.srev !== cm.srev) { cacheSet('meta', m); refreshSettings(m.srev); }
+    if (m.rev && m.rev !== state.rev) { state.rev = m.rev; state.persons = null; onChange(); }
   };
   setInterval(check, every);
   document.addEventListener('visibilitychange', check);

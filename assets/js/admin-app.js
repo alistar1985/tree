@@ -2,7 +2,7 @@
    لوحة التحكم (Firebase): المعلومات، الطلبات، الأفراد، البيوت، الرموز، السجل، الزوار، الإعدادات، المشرفون.
    ========================================================================== */
 /* global App */
-import * as S from './store.js?v=19';
+import * as S from './store.js?v=20';
 
 const { $, $$, esc, icon, toast } = App;
 const { db, ref, get, update, push, query, orderByChild, startAt, limitToLast, equalTo, state, P } = S;
